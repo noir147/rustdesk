@@ -655,6 +655,18 @@ impl Connection {
                             conn.on_close("connection manager window closed", true).await;
                             break;
                         }
+                        // Displaced by a newer connection from the same session: end now rather
+                        // than waiting out the inactivity timeout. Until then this one stays a
+                        // video subscriber the capture loop waits on, a viewer the rate control
+                        // averages in, and a second entry in the connection manager - all of it
+                        // charged to the session that replaced it. Nothing is sent to the peer,
+                        // and the screen is not locked: the session continues, on the new one.
+                        ipc::Data::Displaced => {
+                            conn.chat_unanswered = false; // seen
+                            conn.file_transferred = false; //seen
+                            conn.on_close("displaced by a newer connection", false).await;
+                            break;
+                        }
                         ipc::Data::CmErr(e) => {
                             if e != "expected" {
                                 // cm closed before connection
@@ -6658,6 +6670,23 @@ mod raii {
     pub struct AuthedConnID(i32, AuthConnType);
 
     impl AuthedConnID {
+        // Split out from `new` so the rule can be exercised without two live connections: what
+        // counts as displaced is the whole of the change, and getting it wrong ends a session
+        // that should have kept running.
+        //
+        // Same kind, not any kind: one session legitimately holds a remote control connection
+        // and a file transfer or port forward at once, and those must not end each other. Two of
+        // the same kind under one session id is the thing that only a link failing without a
+        // close can produce.
+        pub(super) fn is_displaced(
+            c: &AuthedConn,
+            conn_id: i32,
+            conn_type: AuthConnType,
+            session_key: &SessionKey,
+        ) -> bool {
+            c.conn_id != conn_id && c.conn_type == conn_type && &c.session_key == session_key
+        }
+
         pub fn new(
             conn_id: i32,
             conn_type: AuthConnType,
@@ -6668,6 +6697,16 @@ mod raii {
             let printer = conn_type == crate::server::AuthConnType::Remote
                 && crate::is_support_remote_print(&lr.version)
                 && lr.my_platform == hbb_common::whoami::Platform::Windows.to_string();
+            // A connection of the same kind sharing this one's session key is the same
+            // session's earlier attempt, still running because its own link died without a close
+            // reaching it. Collect it here and end it below, off the lock.
+            let displaced: Vec<_> = AUTHED_CONNS
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|c| Self::is_displaced(c, conn_id, conn_type, &session_key))
+                .map(|c| (c.conn_id, c.sender.clone()))
+                .collect();
             AUTHED_CONNS.lock().unwrap().push(AuthedConn {
                 conn_id,
                 conn_type,
@@ -6675,6 +6714,10 @@ mod raii {
                 sender,
                 printer,
             });
+            for (displaced_id, sender) in displaced {
+                log::info!("#{displaced_id} displaced by #{conn_id}");
+                sender.send(Data::Displaced).ok();
+            }
             Self::check_wake_lock();
             use std::sync::Once;
             static _ONCE: Once = Once::new();
@@ -7546,5 +7589,76 @@ mod test {
             scoped.terminal_persistent.enum_value(),
             Ok(BoolOption::NotSet)
         );
+    }
+
+    // The rule that decides which connection gets ended. Too wide and it kills a connection
+    // that should keep running; too narrow and the displaced one lingers, still subscribed to
+    // video and still counted by the rate control.
+    #[test]
+    fn displaced_matches_only_the_same_kind_in_the_same_session() {
+        use super::raii::AuthedConnID;
+
+        let key = |session_id: u64, peer: &str| SessionKey {
+            peer_id: peer.to_owned(),
+            name: "".to_owned(),
+            session_id,
+        };
+        let conn = |conn_id: i32, conn_type: AuthConnType, session_key: SessionKey| AuthedConn {
+            conn_id,
+            conn_type,
+            session_key,
+            sender: tokio::sync::mpsc::unbounded_channel().0,
+            printer: false,
+        };
+        let mine = key(7, "peer");
+
+        // Every kind displaces its own: a stale remote control or camera view keeps the capture
+        // loop waiting on it, and a stale transfer or tunnel holds its own resources.
+        for kind in [
+            AuthConnType::Remote,
+            AuthConnType::ViewCamera,
+            AuthConnType::FileTransfer,
+            AuthConnType::PortForward,
+        ] {
+            assert!(
+                AuthedConnID::is_displaced(&conn(1, kind, mine.clone()), 2, kind, &mine),
+                "{kind:?} must displace its own kind"
+            );
+            // Itself, whatever else matches.
+            assert!(!AuthedConnID::is_displaced(
+                &conn(2, kind, mine.clone()),
+                2,
+                kind,
+                &mine
+            ));
+        }
+
+        // A different kind under the same session is expected - a transfer or a tunnel runs
+        // alongside remote control - and must survive.
+        for other in [
+            AuthConnType::FileTransfer,
+            AuthConnType::PortForward,
+            AuthConnType::ViewCamera,
+        ] {
+            assert!(
+                !AuthedConnID::is_displaced(
+                    &conn(1, other, mine.clone()),
+                    2,
+                    AuthConnType::Remote,
+                    &mine
+                ),
+                "remote control must not end a {other:?} beside it"
+            );
+        }
+
+        // Another session, and another peer entirely.
+        for foreign in [key(8, "peer"), key(7, "other")] {
+            assert!(!AuthedConnID::is_displaced(
+                &conn(1, AuthConnType::Remote, foreign),
+                2,
+                AuthConnType::Remote,
+                &mine
+            ));
+        }
     }
 }
