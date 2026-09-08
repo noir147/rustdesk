@@ -655,18 +655,6 @@ impl Connection {
                             conn.on_close("connection manager window closed", true).await;
                             break;
                         }
-                        // Displaced by a newer connection from the same session: end now rather
-                        // than waiting out the inactivity timeout. Until then this one stays a
-                        // video subscriber the capture loop waits on, a viewer the rate control
-                        // averages in, and a second entry in the connection manager - all of it
-                        // charged to the session that replaced it. Nothing is sent to the peer,
-                        // and the screen is not locked: the session continues, on the new one.
-                        ipc::Data::Displaced => {
-                            conn.chat_unanswered = false; // seen
-                            conn.file_transferred = false; //seen
-                            conn.on_close("displaced by a newer connection", false).await;
-                            break;
-                        }
                         ipc::Data::CmErr(e) => {
                             if e != "expected" {
                                 // cm closed before connection
@@ -1030,6 +1018,20 @@ impl Connection {
                 },
                 Some(data) = rx_from_authed.recv() => {
                     match data {
+                        // Sent by the newer connection's own registration, over the channel
+                        // `AuthedConnID::new` was handed - this one, not the connection
+                        // manager's. End now rather than waiting out the inactivity timeout:
+                        // until then this connection stays a video subscriber the capture loop
+                        // waits on, a viewer the rate control averages in, and a second entry in
+                        // the connection manager, all of it charged to the session that replaced
+                        // it. Nothing is sent to the peer, and the screen is not locked: the
+                        // session continues, on the new connection.
+                        ipc::Data::Displaced => {
+                            conn.chat_unanswered = false; // seen
+                            conn.file_transferred = false; //seen
+                            conn.on_close("displaced by a newer connection", false).await;
+                            break;
+                        }
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
                         ipc::Data::PrinterData(data) => {
                             if Self::permission(keys::OPTION_ENABLE_REMOTE_PRINTER, &conn.control_permissions) {
@@ -6700,23 +6702,31 @@ mod raii {
             // A connection of the same kind sharing this one's session key is the same
             // session's earlier attempt, still running because its own link died without a close
             // reaching it. Collect it here and end it below, off the lock.
-            let displaced: Vec<_> = AUTHED_CONNS
-                .lock()
-                .unwrap()
-                .iter()
-                .filter(|c| Self::is_displaced(c, conn_id, conn_type, &session_key))
-                .map(|c| (c.conn_id, c.sender.clone()))
-                .collect();
-            AUTHED_CONNS.lock().unwrap().push(AuthedConn {
-                conn_id,
-                conn_type,
-                session_key,
-                sender,
-                printer,
-            });
+            // Scanned and inserted under one lock: two registrations that both scanned before
+            // either inserted would each find nothing and both stay, which is the state this is
+            // here to prevent. Only the sending happens off the lock.
+            let displaced: Vec<_> = {
+                let mut conns = AUTHED_CONNS.lock().unwrap();
+                let displaced: Vec<_> = conns
+                    .iter()
+                    .filter(|c| Self::is_displaced(c, conn_id, conn_type, &session_key))
+                    .map(|c| (c.conn_id, c.sender.clone()))
+                    .collect();
+                conns.push(AuthedConn {
+                    conn_id,
+                    conn_type,
+                    session_key,
+                    sender,
+                    printer,
+                });
+                displaced
+            };
             for (displaced_id, sender) in displaced {
                 log::info!("#{displaced_id} displaced by #{conn_id}");
-                sender.send(Data::Displaced).ok();
+                if let Err(err) = sender.send(Data::Displaced) {
+                    // Its loop has already ended, which is the outcome this wanted anyway.
+                    log::debug!("#{displaced_id} was already gone: {err}");
+                }
             }
             Self::check_wake_lock();
             use std::sync::Once;
