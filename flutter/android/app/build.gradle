@@ -34,6 +34,12 @@ if (flutterVersionName == null) {
 
 // Add rustls-platform-verifier Android support
 String findRustlsPlatformVerifierMavenDir() {
+    // Custom build: allow a Rust-less local build (native lib prebuilt by CI).
+    def override = System.getenv("RUSTLS_PV_ANDROID_MAVEN_DIR")
+    if (override != null && new File(override).exists()) {
+        println("Using rustls-platform-verifier maven repo from env: ${override}")
+        return override
+    }
     def dependencyText = providers.exec {
         it.workingDir = new File("../..")
         commandLine("cargo", "metadata", "--format-version", "1")
