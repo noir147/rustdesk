@@ -188,6 +188,9 @@ const String kOptionCustomKeepCanvasOnKeyboard = "custom-keep-canvas-on-keyboard
 // Custom build: ask Android for a plain ASCII (secure) keyboard so the phone
 // IME never composes full-width text; conversion is left to the PC IME.
 const String kOptionCustomAsciiKeyboard = "custom-ascii-keyboard";
+// Custom build: this phone is only ever the controller; the controlled-side
+// services are removed from the Android manifest, so hide their UI too.
+const bool kCustomEnableServerTab = false;
 
 const String kOptionShowVirtualJoystick = "show-virtual-joystick";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";
