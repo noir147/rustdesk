@@ -1109,10 +1109,7 @@ impl Connection {
         if conn.authorized {
             password::update_temporary_password();
         }
-        if let Err(err) = conn
-            .try_port_forward_loop(&mut rx_from_cm, &mut rx_from_authed)
-            .await
-        {
+        if let Err(err) = conn.try_port_forward_loop(&mut rx_from_cm).await {
             conn.on_close(&err.to_string(), false).await;
             raii::AuthedConnID::check_remove_session(conn.inner.id(), conn.session_key());
         }
@@ -1218,7 +1215,6 @@ impl Connection {
     async fn try_port_forward_loop(
         &mut self,
         rx_from_cm: &mut mpsc::UnboundedReceiver<Data>,
-        rx_from_authed: &mut mpsc::UnboundedReceiver<Data>,
     ) -> ResultType<()> {
         let mut last_recv_time = Instant::now();
         if let Some(mut forward) = self.port_forward_socket.take() {
@@ -1244,18 +1240,6 @@ impl Connection {
                                 bail!("{e}");
                             }
                             _ => {}
-                        }
-                    }
-                    // An authorized port forward leaves the main select loop the moment its
-                    // tunnel is up, so this is where it spends the rest of its life and the only
-                    // place a displacement can still reach it.
-                    Some(data) = rx_from_authed.recv() => {
-                        if let ipc::Data::Displaced = data {
-                            // Closed here rather than bailed: the caller answers an error by
-                            // removing the session, and this session is precisely what carries
-                            // on - on the connection that took this one's place.
-                            self.on_close("displaced by a newer connection", false).await;
-                            return Ok(());
                         }
                     }
                     res = forward.next() => {
@@ -6696,13 +6680,21 @@ mod raii {
         // and a file transfer or port forward at once, and those must not end each other. Two of
         // the same kind under one session id is the thing that only a link failing without a
         // close can produce.
+        //
+        // Port forward excepted, where it is ordinary: a window's mappings log in concurrently
+        // (`port_forward::listen`, `Claim::Legacy`, one login and one connection per accepted
+        // local socket) over the one `LoginConfigHandler` that holds the session id, so several
+        // live tunnels share a key and a kind by design.
         pub(super) fn is_displaced(
             c: &AuthedConn,
             conn_id: i32,
             conn_type: AuthConnType,
             session_key: &SessionKey,
         ) -> bool {
-            c.conn_id != conn_id && c.conn_type == conn_type && &c.session_key == session_key
+            conn_type != AuthConnType::PortForward
+                && c.conn_id != conn_id
+                && c.conn_type == conn_type
+                && &c.session_key == session_key
         }
 
         pub fn new(
@@ -7639,12 +7631,11 @@ mod test {
         let mine = key(7, "peer");
 
         // Every kind displaces its own: a stale remote control or camera view keeps the capture
-        // loop waiting on it, and a stale transfer, tunnel or terminal holds its own resources.
+        // loop waiting on it, and a stale transfer or terminal holds its own resources.
         for kind in [
             AuthConnType::Remote,
             AuthConnType::ViewCamera,
             AuthConnType::FileTransfer,
-            AuthConnType::PortForward,
             AuthConnType::Terminal,
         ] {
             assert!(
@@ -7678,6 +7669,16 @@ mod test {
                 "remote control must not end a {other:?} beside it"
             );
         }
+
+        // Port forward is the exception, and it is not a rare one: every local socket a
+        // mapping accepts logs in on its own connection, and they all carry the window's one
+        // session id. Displacing there would cut the tunnel a browser opened a moment ago.
+        assert!(!AuthedConnID::is_displaced(
+            &conn(1, AuthConnType::PortForward, mine.clone()),
+            2,
+            AuthConnType::PortForward,
+            &mine
+        ));
 
         // Another session, and another peer entirely.
         for foreign in [key(8, "peer"), key(7, "other")] {
