@@ -179,6 +179,9 @@ const double kMobileMouseSpeedFactor = 1.5;
 // accumulated movement exceeds this many logical pixels (and no pinch detected).
 const double kTwoFingerScrollIntentPx = 12.0;
 const double kTwoFingerPinchIntentScale = 0.06;
+// Custom build: Wake-on-LAN relay (always-on PC running scripts/ops/wol_relay.py).
+const String kOptionCustomWolRelay = "custom-wol-relay";
+const String kDefaultWolRelay = "100.77.70.61:5055";
 
 const String kOptionShowVirtualJoystick = "show-virtual-joystick";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";

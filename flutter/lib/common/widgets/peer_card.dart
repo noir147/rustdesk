@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../common.dart';
 import '../../common/formatter/id_formatter.dart';
 import '../../models/peer_model.dart';
+import '../wol_relay.dart';
 import '../../models/platform_model.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../desktop/widgets/popup_menu.dart';
@@ -681,6 +682,32 @@ abstract class BasePeerCard extends StatelessWidget {
     );
   }
 
+  /// Custom build: wake this peer through the WoL relay (matched by hostname).
+  @protected
+  MenuEntryBase<String> _wolRelayAction(Peer peer) {
+    return MenuEntryButton<String>(
+      childBuilder: (TextStyle? style) => Text(
+        'Wake-on-LAN (relay)',
+        style: style,
+      ),
+      proc: () async {
+        try {
+          final t = await WolRelay.findByHostname(peer.hostname);
+          if (t == null) {
+            showToast('WoL: ${peer.hostname} is not known to the relay');
+            return;
+          }
+          final n = await WolRelay.wake(name: t.name);
+          showToast('WoL: sent $n packets to ${t.label}');
+        } catch (e) {
+          showToast('WoL failed: $e');
+        }
+      },
+      padding: menuPadding,
+      dismissOnClicked: true,
+    );
+  }
+
   /// Only available on Windows.
   @protected
   MenuEntryBase<String> _createShortCutAction(String id) {
@@ -992,6 +1019,9 @@ class RecentPeerCard extends BasePeerCard {
     if (isWindows) {
       menuItems.add(_createShortCutAction(peer.id));
     }
+    if (isMobile) {
+      menuItems.add(_wolRelayAction(peer));
+    }
     menuItems.add(MenuEntryDivider());
     if (isMobile || isDesktop || isWebDesktop) {
       menuItems.add(_renameAction(peer.id));
@@ -1054,6 +1084,9 @@ class FavoritePeerCard extends BasePeerCard {
     }
     if (isWindows) {
       menuItems.add(_createShortCutAction(peer.id));
+    }
+    if (isMobile) {
+      menuItems.add(_wolRelayAction(peer));
     }
     menuItems.add(MenuEntryDivider());
     if (isMobile || isDesktop || isWebDesktop) {
@@ -1118,6 +1151,9 @@ class DiscoveredPeerCard extends BasePeerCard {
     if (isWindows) {
       menuItems.add(_createShortCutAction(peer.id));
     }
+    if (isMobile) {
+      menuItems.add(_wolRelayAction(peer));
+    }
 
     if (!favs.contains(peer.id)) {
       menuItems.add(_addFavAction(peer.id));
@@ -1173,6 +1209,9 @@ class AddressBookPeerCard extends BasePeerCard {
     }
     if (isWindows) {
       menuItems.add(_createShortCutAction(peer.id));
+    }
+    if (isMobile) {
+      menuItems.add(_wolRelayAction(peer));
     }
     if (gFFI.abModel.current.canWrite()) {
       menuItems.add(MenuEntryDivider());
@@ -1330,6 +1369,9 @@ class MyGroupPeerCard extends BasePeerCard {
     }
     if (isWindows) {
       menuItems.add(_createShortCutAction(peer.id));
+    }
+    if (isMobile) {
+      menuItems.add(_wolRelayAction(peer));
     }
     // menuItems.add(MenuEntryDivider());
     // menuItems.add(_renameAction(peer.id));

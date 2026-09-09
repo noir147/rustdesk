@@ -21,6 +21,7 @@ import '../widgets/deploy_dialog.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
+import 'wol_page.dart';
 
 class SettingsPage extends StatefulWidget implements PageShape {
   @override
@@ -809,6 +810,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 });
               },
             ),
+          // Custom build: Wake-on-LAN via relay
+          SettingsTile(
+              title: const Text('Wake-on-LAN'),
+              leading: const Icon(Icons.power_settings_new),
+              onPressed: (context) {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => const WolPage()));
+              }),
           SettingsTile(
               title: Text(translate('Language')),
               leading: Icon(Icons.translate),
