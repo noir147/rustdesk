@@ -1251,7 +1251,11 @@ impl Connection {
                     // place a displacement can still reach it.
                     Some(data) = rx_from_authed.recv() => {
                         if let ipc::Data::Displaced = data {
-                            bail!("displaced by a newer connection");
+                            // Closed here rather than bailed: the caller answers an error by
+                            // removing the session, and this session is precisely what carries
+                            // on - on the connection that took this one's place.
+                            self.on_close("displaced by a newer connection", false).await;
+                            return Ok(());
                         }
                     }
                     res = forward.next() => {
