@@ -1109,7 +1109,10 @@ impl Connection {
         if conn.authorized {
             password::update_temporary_password();
         }
-        if let Err(err) = conn.try_port_forward_loop(&mut rx_from_cm).await {
+        if let Err(err) = conn
+            .try_port_forward_loop(&mut rx_from_cm, &mut rx_from_authed)
+            .await
+        {
             conn.on_close(&err.to_string(), false).await;
             raii::AuthedConnID::check_remove_session(conn.inner.id(), conn.session_key());
         }
@@ -1215,6 +1218,7 @@ impl Connection {
     async fn try_port_forward_loop(
         &mut self,
         rx_from_cm: &mut mpsc::UnboundedReceiver<Data>,
+        rx_from_authed: &mut mpsc::UnboundedReceiver<Data>,
     ) -> ResultType<()> {
         let mut last_recv_time = Instant::now();
         if let Some(mut forward) = self.port_forward_socket.take() {
@@ -1240,6 +1244,14 @@ impl Connection {
                                 bail!("{e}");
                             }
                             _ => {}
+                        }
+                    }
+                    // An authorized port forward leaves the main select loop the moment its
+                    // tunnel is up, so this is where it spends the rest of its life and the only
+                    // place a displacement can still reach it.
+                    Some(data) = rx_from_authed.recv() => {
+                        if let ipc::Data::Displaced = data {
+                            bail!("displaced by a newer connection");
                         }
                     }
                     res = forward.next() => {
