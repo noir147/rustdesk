@@ -182,6 +182,12 @@ const double kTwoFingerPinchIntentScale = 0.06;
 // Custom build: Wake-on-LAN relay (always-on PC running scripts/ops/wol_relay.py).
 const String kOptionCustomWolRelay = "custom-wol-relay";
 const String kDefaultWolRelay = "100.77.70.61:5055";
+// Custom build: keep the remote view in place when the soft keyboard opens
+// (no canvas resize / re-centering on the cursor).
+const String kOptionCustomKeepCanvasOnKeyboard = "custom-keep-canvas-on-keyboard";
+// Custom build: ask Android for a plain ASCII (secure) keyboard so the phone
+// IME never composes full-width text; conversion is left to the PC IME.
+const String kOptionCustomAsciiKeyboard = "custom-ascii-keyboard";
 
 const String kOptionShowVirtualJoystick = "show-virtual-joystick";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";

@@ -682,12 +682,19 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       // https://github.com/flutter/flutter/issues/139143
                       // https://github.com/flutter/flutter/issues/146540
                       // enableSuggestions: false,
+                      // Custom build: the secure keyboard is exactly what we want when
+                      // the PC IME does the conversion (no full-width from the phone).
+                      enableSuggestions:
+                          !mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard),
                       autofocus: true,
                       focusNode: _mobileFocusNode,
                       maxLines: null,
                       controller: _textController,
                       // trick way to make backspace work always
-                      keyboardType: TextInputType.multiline,
+                      keyboardType:
+                          mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard)
+                              ? TextInputType.visiblePassword
+                              : TextInputType.multiline,
                       // `onChanged` may be called depending on the input method if this widget is wrapped in
                       // `Focus(onKeyEvent: ..., child: ...)`
                       // For `Backspace` button in the soft keyboard:

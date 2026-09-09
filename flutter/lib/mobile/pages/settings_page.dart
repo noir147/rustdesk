@@ -818,6 +818,25 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => const WolPage()));
               }),
+          SettingsTile.switchTile(
+            title: const Text('Keep screen in place when keyboard opens'),
+            leading: const Icon(Icons.keyboard_hide),
+            initialValue:
+                mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard),
+            onToggle: (v) async {
+              await mainSetLocalBoolOption(kOptionCustomKeepCanvasOnKeyboard, v);
+              setState(() {});
+            },
+          ),
+          SettingsTile.switchTile(
+            title: const Text('ASCII keyboard only (PC IME converts)'),
+            leading: const Icon(Icons.keyboard_alt_outlined),
+            initialValue: mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard),
+            onToggle: (v) async {
+              await mainSetLocalBoolOption(kOptionCustomAsciiKeyboard, v);
+              setState(() {});
+            },
+          ),
           SettingsTile(
               title: Text(translate('Language')),
               leading: Icon(Icons.translate),

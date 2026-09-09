@@ -2302,10 +2302,13 @@ class CanvasModel with ChangeNotifier {
       w = w - mediaData.padding.left - mediaData.padding.right;
       // Vertically, subtract the bottom keyboard inset (viewInsets.bottom) and any
       // bottom overlay (e.g. key-help tools) so the canvas is not covered.
-      h = h -
-          mediaData.viewInsets.bottom -
-          (parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ??
-              0);
+      // Custom build: optionally keep the canvas size (keyboard overlays it).
+      if (!mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard)) {
+        h = h -
+            mediaData.viewInsets.bottom -
+            (parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ??
+                0);
+      }
       // Orientation-specific handling:
       //  - Portrait: additionally subtract top padding (e.g. status bar / notch)
       //  - Landscape: does not subtract mediaData.padding.top/bottom (home indicator auto-hides)
@@ -3029,7 +3032,9 @@ class CursorModel with ChangeNotifier {
       // `lastIsBlocked` will be set when the cursor is moving or touch somewhere else.
       _lastIsBlocked = true;
     }
-    if (isMobile && _lastKeyboardIsVisible != keyboardIsVisible) {
+    if (isMobile &&
+        _lastKeyboardIsVisible != keyboardIsVisible &&
+        !mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard)) {
       if (keyboardIsVisible) {
         parent.target?.canvasModel.saveMobileOffsetBeforeSoftKeyboard();
         parent.target?.canvasModel.mobileFocusCanvasCursor();
