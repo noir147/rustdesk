@@ -7635,12 +7635,13 @@ mod test {
         let mine = key(7, "peer");
 
         // Every kind displaces its own: a stale remote control or camera view keeps the capture
-        // loop waiting on it, and a stale transfer or tunnel holds its own resources.
+        // loop waiting on it, and a stale transfer, tunnel or terminal holds its own resources.
         for kind in [
             AuthConnType::Remote,
             AuthConnType::ViewCamera,
             AuthConnType::FileTransfer,
             AuthConnType::PortForward,
+            AuthConnType::Terminal,
         ] {
             assert!(
                 AuthedConnID::is_displaced(&conn(1, kind, mine.clone()), 2, kind, &mine),
@@ -7661,6 +7662,7 @@ mod test {
             AuthConnType::FileTransfer,
             AuthConnType::PortForward,
             AuthConnType::ViewCamera,
+            AuthConnType::Terminal,
         ] {
             assert!(
                 !AuthedConnID::is_displaced(
