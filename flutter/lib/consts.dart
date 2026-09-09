@@ -184,10 +184,11 @@ const String kOptionCustomWolRelay = "custom-wol-relay";
 const String kDefaultWolRelay = "100.77.70.61:5055";
 // Custom build: keep the remote view in place when the soft keyboard opens
 // (no canvas resize / re-centering on the cursor).
-const String kOptionCustomKeepCanvasOnKeyboard = "custom-keep-canvas-on-keyboard";
+// "enable-" prefix: RustDesk treats these as default ON (option2bool).
+const String kOptionCustomKeepCanvasOnKeyboard = "enable-custom-keep-canvas-on-keyboard";
 // Custom build: ask Android for a plain ASCII (secure) keyboard so the phone
 // IME never composes full-width text; conversion is left to the PC IME.
-const String kOptionCustomAsciiKeyboard = "custom-ascii-keyboard";
+const String kOptionCustomAsciiKeyboard = "enable-custom-ascii-keyboard";
 // Custom build: this phone is only ever the controller; the controlled-side
 // services are removed from the Android manifest, so hide their UI too.
 const bool kCustomEnableServerTab = false;
