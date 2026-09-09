@@ -2081,7 +2081,19 @@ impl Connection {
                 self.try_sub_monitor_services();
             }
         }
+        if !wait_session_id_confirm {
+            self.displace_replaced();
+        }
         true
+    }
+
+    // Ends whatever this connection replaced, now that it has taken over. Idempotent, so the
+    // path that waits for a Windows session to be picked can call it when that arrives instead.
+    #[inline]
+    fn displace_replaced(&mut self) {
+        if let Some(authed) = self.authed_conn_id.as_mut() {
+            authed.displace_replaced();
+        }
     }
 
     fn try_sub_camera_displays(&mut self) {
@@ -3865,6 +3877,7 @@ impl Connection {
                             } else if !self.terminal {
                                 self.try_sub_monitor_services();
                             }
+                            self.displace_replaced();
                         }
                     }
                     Some(misc::Union::MessageQuery(mq)) => {
@@ -6669,7 +6682,7 @@ mod raii {
         }
     }
 
-    pub struct AuthedConnID(i32, AuthConnType);
+    pub struct AuthedConnID(i32, AuthConnType, Vec<(i32, mpsc::UnboundedSender<Data>)>);
 
     impl AuthedConnID {
         // Split out from `new` so the rule can be exercised without two live connections: what
@@ -6695,6 +6708,26 @@ mod raii {
                 && c.conn_id != conn_id
                 && c.conn_type == conn_type
                 && &c.session_key == session_key
+        }
+
+        // Deliberately not done inside `new`: registering is not taking over. Until the login
+        // is answered and the services are subscribed, this connection has replaced nothing,
+        // and a failure on the way there - or a `join` on the terminal service, or an
+        // unsubscribe that stops the capturer - would cost a session that was still working.
+        // The list was decided under the registration lock; only the ending waits for here.
+        #[cfg(test)]
+        pub(super) fn with_pending(conn_id: i32, pending: Vec<(i32, mpsc::UnboundedSender<Data>)>) -> Self {
+            Self(conn_id, AuthConnType::Remote, pending)
+        }
+
+        pub fn displace_replaced(&mut self) {
+            for (displaced_id, sender) in std::mem::take(&mut self.2) {
+                log::info!("#{displaced_id} displaced by #{}", self.0);
+                if let Err(err) = sender.send(Data::Displaced) {
+                    // Its loop has already ended, which is the outcome this wanted anyway.
+                    log::debug!("#{displaced_id} was already gone: {err}");
+                }
+            }
         }
 
         pub fn new(
@@ -6729,13 +6762,6 @@ mod raii {
                 });
                 displaced
             };
-            for (displaced_id, sender) in displaced {
-                log::info!("#{displaced_id} displaced by #{conn_id}");
-                if let Err(err) = sender.send(Data::Displaced) {
-                    // Its loop has already ended, which is the outcome this wanted anyway.
-                    log::debug!("#{displaced_id} was already gone: {err}");
-                }
-            }
             Self::check_wake_lock();
             use std::sync::Once;
             static _ONCE: Once = Once::new();
@@ -6748,7 +6774,7 @@ mod raii {
                     .unwrap()
                     .on_connection_open(conn_id);
             }
-            Self(conn_id, conn_type)
+            Self(conn_id, conn_type, displaced)
         }
 
         fn check_wake_lock() {
@@ -7607,6 +7633,23 @@ mod test {
             scoped.terminal_persistent.enum_value(),
             Ok(BoolOption::NotSet)
         );
+    }
+
+    // Two call sites end what a connection replaced - the ordinary one and the one that waits
+    // for a Windows session to be picked - so ending twice must be as safe as ending once.
+    #[test]
+    fn replaced_connections_are_ended_once_and_only_when_asked() {
+        use super::raii::AuthedConnID;
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut authed = AuthedConnID::with_pending(2, vec![(1, tx)]);
+        assert!(rx.try_recv().is_err(), "holding the guard must send nothing");
+
+        authed.displace_replaced();
+        assert!(matches!(rx.try_recv(), Ok(Data::Displaced)));
+
+        authed.displace_replaced();
+        assert!(rx.try_recv().is_err(), "the second call must send nothing");
     }
 
     // The rule that decides which connection gets ended. Too wide and it kills a connection
