@@ -304,6 +304,11 @@ class _GestureHelpState extends State<GestureHelp> {
                           GestureInfo(
                               width,
                               GestureIcons.iconGestureFDrag,
+                              translate("Two-Finger vertically"),
+                              translate("Mouse Wheel")),
+                          GestureInfo(
+                              width,
+                              GestureIcons.iconGestureFDrag,
                               translate("Two-Finger Move"),
                               translate("Canvas Move")),
                           GestureInfo(
@@ -332,6 +337,11 @@ class _GestureHelpState extends State<GestureHelp> {
                               width,
                               GestureIcons.iconGestureFThreeFingers,
                               translate("Three-Finger vertically"),
+                              translate("Mouse Wheel")),
+                          GestureInfo(
+                              width,
+                              GestureIcons.iconGestureFDrag,
+                              translate("Two-Finger vertically"),
                               translate("Mouse Wheel")),
                           GestureInfo(
                               width,

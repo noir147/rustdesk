@@ -92,6 +92,10 @@ class _RawTouchGestureDetectorRegionState
   int _cacheLongPressPositionTs = 0;
   double _mouseScrollIntegral = 0; // mouse scroll speed controller
   double _scale = 1;
+  // Custom build: intent of the current two-finger gesture on mobile.
+  // 0 = undecided, 1 = scroll (mouse wheel), 2 = canvas zoom / pan.
+  int _twoFingerMode = 0;
+  Offset _twoFingerAccum = Offset.zero;
 
   // Workaround tap down event when two fingers are used to scale(mobile)
   TapDownDetails? _lastTapDownDetails;
@@ -338,7 +342,8 @@ class _RawTouchGestureDetectorRegionState
     }
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
-      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      await ffi.cursorModel.updatePan(
+          d.delta * kMobileMouseSpeedFactor, d.localPosition, handleTouch);
     }
   }
 
@@ -413,11 +418,14 @@ class _RawTouchGestureDetectorRegionState
     if (handleTouch && !_touchModePanStarted) {
       return;
     }
+    // Custom build: faster pointer in mobile mouse mode (TeamViewer-like feel).
+    final delta =
+        (isMobile && !handleTouch) ? d.delta * kMobileMouseSpeedFactor : d.delta;
     // In relative mouse mode, send delta directly without position tracking.
     if (inputModel.relativeMouseMode.value) {
-      await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
+      await inputModel.sendMobileRelativeMouseMove(delta.dx, delta.dy);
     } else {
-      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      await ffi.cursorModel.updatePan(delta, d.localPosition, handleTouch);
     }
   }
 
@@ -448,6 +456,8 @@ class _RawTouchGestureDetectorRegionState
   // scale + pan event
   onTwoFingerScaleStart(ScaleStartDetails d) {
     _lastTapDownDetails = null;
+    _twoFingerMode = 0;
+    _twoFingerAccum = Offset.zero;
     if (isNotTouchBasedDevice()) {
       return;
     }
@@ -485,6 +495,26 @@ class _RawTouchGestureDetectorRegionState
       }
     } else {
       // mobile
+      // Custom build: decide once per gesture whether two fingers mean
+      // "mouse wheel" (mostly vertical drag, no pinch) or "canvas zoom/pan".
+      if (_twoFingerMode == 0) {
+        _twoFingerAccum += d.focalPointDelta;
+        if (ffi.ffiModel.isPeerAndroid ||
+            (d.scale - 1.0).abs() > kTwoFingerPinchIntentScale) {
+          _twoFingerMode = 2;
+        } else if (_twoFingerAccum.distance > kTwoFingerScrollIntentPx) {
+          _twoFingerMode =
+              _twoFingerAccum.dy.abs() >= _twoFingerAccum.dx.abs() ? 1 : 2;
+        } else {
+          return;
+        }
+        // Re-base the scale so the first zoom frame does not jump.
+        _scale = d.scale;
+      }
+      if (_twoFingerMode == 1) {
+        _scrollByDelta(d.focalPointDelta.dy);
+        return;
+      }
       ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
       _scale = d.scale;
       ffi.canvasModel.panX(d.focalPointDelta.dx);
@@ -514,17 +544,24 @@ class _RawTouchGestureDetectorRegionState
   }
 
   get onHoldDragCancel => null;
+
+  // Accumulate finger movement and emit wheel events (shared by the
+  // three-finger and, in this custom build, the two-finger vertical drag).
+  void _scrollByDelta(double dy) {
+    _mouseScrollIntegral += dy / 4;
+    if (_mouseScrollIntegral > 1) {
+      inputModel.scroll(1);
+      _mouseScrollIntegral = 0;
+    } else if (_mouseScrollIntegral < -1) {
+      inputModel.scroll(-1);
+      _mouseScrollIntegral = 0;
+    }
+  }
+
   get onThreeFingerVerticalDragUpdate => ffi.ffiModel.isPeerAndroid
       ? null
       : (d) {
-          _mouseScrollIntegral += d.delta.dy / 4;
-          if (_mouseScrollIntegral > 1) {
-            inputModel.scroll(1);
-            _mouseScrollIntegral = 0;
-          } else if (_mouseScrollIntegral < -1) {
-            inputModel.scroll(-1);
-            _mouseScrollIntegral = 0;
-          }
+          _scrollByDelta(d.delta.dy);
         };
 
   makeGestures(BuildContext context) {

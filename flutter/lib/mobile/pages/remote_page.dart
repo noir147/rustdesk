@@ -1053,6 +1053,11 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('Tab', () {
         inputModel.inputKey('VK_TAB');
       }),
+      // Custom build: Japanese IME toggle (Hankaku/Zenkaku = VK_KANJI on Windows).
+      if (isWin)
+        wrap('半/全', () {
+          inputModel.inputKey('VK_KANJI');
+        }),
       wrap('Home', () {
         inputModel.inputKey('VK_HOME');
       }),

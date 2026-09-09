@@ -172,6 +172,14 @@ const String kOptionEnableIpv6Punch = "enable-ipv6-punch";
 const String kOptionEnableTrustedDevices = "enable-trusted-devices";
 const String kOptionShowVirtualMouse = "show-virtual-mouse";
 const String kOptionVirtualMouseScale = "virtual-mouse-scale";
+// Custom build (TeamViewer-like gestures): pointer speed multiplier for one-finger
+// pan / hold-drag in mobile mouse mode. 1.0 = upstream behavior.
+const double kMobileMouseSpeedFactor = 1.5;
+// Custom build: two-finger vertical drag is treated as mouse wheel once the
+// accumulated movement exceeds this many logical pixels (and no pinch detected).
+const double kTwoFingerScrollIntentPx = 12.0;
+const double kTwoFingerPinchIntentScale = 0.06;
+
 const String kOptionShowVirtualJoystick = "show-virtual-joystick";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";
 const String kOptionAllowMonitorSwitchMainToolbar = "allow-monitor-switch-main-toolbar";
