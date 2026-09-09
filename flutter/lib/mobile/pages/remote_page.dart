@@ -378,8 +378,59 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
   }
 
+  // Custom build: legacy character events are injected on Windows as
+  // KEYEVENTF_UNICODE, which bypasses the IME (typing 'a' with the Japanese
+  // IME on gives 'a', not 'あ'). Sending the key as a physical key press in
+  // map mode makes the IME see VK_A and compose. Android key code, evdev
+  // scan code (+8 as RustDesk does for Android) and shift for US/JIS-safe keys.
+  static const Map<String, List<int>> _physKeys = {
+    'a': [29, 30, 0], 'b': [30, 48, 0], 'c': [31, 46, 0], 'd': [32, 32, 0],
+    'e': [33, 18, 0], 'f': [34, 33, 0], 'g': [35, 34, 0], 'h': [36, 35, 0],
+    'i': [37, 23, 0], 'j': [38, 36, 0], 'k': [39, 37, 0], 'l': [40, 38, 0],
+    'm': [41, 50, 0], 'n': [42, 49, 0], 'o': [43, 24, 0], 'p': [44, 25, 0],
+    'q': [45, 16, 0], 'r': [46, 19, 0], 's': [47, 31, 0], 't': [48, 20, 0],
+    'u': [49, 22, 0], 'v': [50, 47, 0], 'w': [51, 17, 0], 'x': [52, 45, 0],
+    'y': [53, 21, 0], 'z': [54, 44, 0],
+    '1': [8, 2, 0], '2': [9, 3, 0], '3': [10, 4, 0], '4': [11, 5, 0],
+    '5': [12, 6, 0], '6': [13, 7, 0], '7': [14, 8, 0], '8': [15, 9, 0],
+    '9': [16, 10, 0], '0': [7, 11, 0],
+    '-': [69, 12, 0], ',': [55, 51, 0], '.': [56, 52, 0], '/': [76, 53, 0],
+    ' ': [62, 57, 0],
+  };
+  static const int _kcShiftLeft = 59, _scShiftLeft = 42;
+
+  bool _inputAsciiAsPhysicalKey(String char) {
+    if (char.length != 1) return false;
+    var key = _physKeys[char];
+    var shift = false;
+    if (key == null) {
+      final lower = char.toLowerCase();
+      if (lower != char && _physKeys.containsKey(lower)) {
+        key = _physKeys[lower];
+        shift = true;
+      }
+    }
+    if (key == null) return false;
+    if (shift) {
+      inputModel.inputRawKey('', _kcShiftLeft, _scShiftLeft + 8, true, false);
+    }
+    inputModel.inputRawKey('', key[0], key[1] + 8, true, false);
+    inputModel.inputRawKey('', key[0], key[1] + 8, false, false);
+    if (shift) {
+      inputModel.inputRawKey('', _kcShiftLeft, _scShiftLeft + 8, false, false);
+    }
+    return true;
+  }
+
   void inputChar(String char) {
     if (!inputModel.keyboardInputAllowed) {
+      return;
+    }
+    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard) &&
+        gFFI.ffiModel.pi.platform == kPeerPlatformWindows &&
+        char != '\n') {
+      if (_inputAsciiAsPhysicalKey(char)) return;
+      inputModel.inputKey(char);
       return;
     }
     if (char == '\n') {
@@ -414,6 +465,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 
   void _openKeyboardUnlocked() {
     inputModel.keyboardInputAllowed = true;
+    // Custom build: physical-key typing (see _inputAsciiAsPhysicalKey) needs
+    // the session in map mode; set it before the keyboard shows up.
+    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard) &&
+        gFFI.ffiModel.pi.platform == kPeerPlatformWindows) {
+      bind.sessionSetKeyboardMode(sessionId: sessionId, value: 'map');
+    }
     gFFI.invokeMethod("enable_soft_keyboard", true);
     // destroy first, so that our _value trick can work
     _value = initText;
@@ -451,6 +508,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         return false;
       },
       child: Scaffold(
+          // Custom build: keep the remote view in place when the keyboard opens.
+          resizeToAvoidBottomInset:
+              !mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard),
           // workaround for https://github.com/rustdesk/rustdesk/issues/3131
           floatingActionButtonLocation: keyboardIsVisible
               ? FABLocation(FloatingActionButtonLocation.endFloat, 0, -35)
