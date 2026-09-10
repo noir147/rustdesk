@@ -22,6 +22,7 @@ import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
 import 'wol_page.dart';
+import '../../common/custom_update.dart';
 
 class SettingsPage extends StatefulWidget implements PageShape {
   @override
@@ -827,6 +828,20 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               await mainSetLocalBoolOption(kOptionCustomKeepCanvasOnKeyboard, v);
               setState(() {});
             },
+          ),
+          SettingsTile.switchTile(
+            title: const Text('Auto-update check on Wi-Fi (GitHub releases)'),
+            leading: const Icon(Icons.system_update),
+            initialValue: mainGetLocalBoolOptionSync(kOptionCustomAutoUpdate),
+            onToggle: (v) async {
+              await mainSetLocalBoolOption(kOptionCustomAutoUpdate, v);
+              setState(() {});
+            },
+          ),
+          SettingsTile(
+            title: Text('Check for update now (installed: $kCustomBuildTag)'),
+            leading: const Icon(Icons.download),
+            onPressed: (context) => CustomUpdate.checkNow(context),
           ),
           SettingsTile.switchTile(
             title: const Text('ASCII keyboard only (PC IME converts)'),

@@ -12,7 +12,9 @@
 #   flutter/lib/generated_bridge*.dart, src/bridge_generated*.rs, jniLibs/arm64-v8a/*.so
 param(
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmm'),
-    [string]$OutDir = 'C:\dev\installers'
+    [string]$OutDir = 'C:\dev\installers',
+    [switch]$Publish,
+    [string]$Notes = ''
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -34,6 +36,12 @@ foreach ($f in 'flutter\lib\generated_bridge.dart',
     if (-not (Test-Path (Join-Path $root $f))) { throw "missing prerequisite: $f" }
 }
 
+# Stamp the build tag into the app (self-update compares it with the release tag).
+$consts = Join-Path $root 'flutter\lib\consts.dart'
+$c = [IO.File]::ReadAllText($consts)
+$c2 = [regex]::Replace($c, "const String kCustomBuildTag = '[^']*';", "const String kCustomBuildTag = '$Tag';")
+if ($c2 -ne $c) { [IO.File]::WriteAllText($consts, $c2, (New-Object Text.UTF8Encoding $false)); Write-Host "kCustomBuildTag = $Tag" }
+
 Push-Location (Join-Path $root 'flutter')
 # Desktop platform folders make `flutter pub get` create plugin symlinks, which
 # needs Developer Mode / admin on Windows. Android-only: park them during the build.
@@ -53,6 +61,13 @@ try {
     $dst = Join-Path $OutDir ("rustdesk-custom-1.4.9-{0}-aarch64.apk" -f $Tag)
     Copy-Item $apk $dst -Force
     Write-Host ("OK {0}  ({1:n0} bytes, {2:n0}s)" -f $dst, (Get-Item $dst).Length, $sw.Elapsed.TotalSeconds)
+    if ($Publish) {
+        $rel = "custom-1.4.9-$Tag"
+        if ($Notes -eq '') { $Notes = "RD Custom build $Tag" }
+        gh release create $rel $dst -R noir147/rustdesk --target custom/teamviewer-gestures --title "Custom 1.4.9 $Tag (RD Custom)" --notes $Notes
+        if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }
+        Write-Host "published https://github.com/noir147/rustdesk/releases/tag/$rel"
+    }
 } finally {
     foreach ($d in $parked) { Rename-Item "_parked_$d" $d }
     Pop-Location

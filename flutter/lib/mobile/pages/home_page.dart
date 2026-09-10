@@ -5,6 +5,7 @@ import 'package:flutter_hbb/web/settings_page.dart';
 import 'package:get/get.dart';
 import '../../common.dart';
 import '../../consts.dart';
+import '../../common/custom_update.dart';
 import '../../common/widgets/chat_page.dart';
 import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
@@ -44,6 +45,10 @@ class HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     initPages();
+    // Custom build: semi-automatic update check (Wi-Fi only, silent if current).
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) CustomUpdate.checkOnStartup(context);
+    });
   }
 
   void initPages() {
