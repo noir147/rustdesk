@@ -179,6 +179,10 @@ const double kMobileMouseSpeedFactor = 1.5;
 // accumulated movement exceeds this many logical pixels (and no pinch detected).
 const double kTwoFingerScrollIntentPx = 12.0;
 const double kTwoFingerPinchIntentScale = 0.06;
+// Custom build: logical pixels of finger movement per mouse-wheel notch for the
+// two-finger / three-finger scroll gesture. Upstream is 4, which sends a notch
+// (3 lines on Windows) for a barely visible movement; higher = slower scroll.
+const double kFingerScrollPxPerNotch = 14.0;
 // Custom build: Wake-on-LAN relay (always-on PC running scripts/ops/wol_relay.py).
 const String kOptionCustomWolRelay = "custom-wol-relay";
 const String kDefaultWolRelay = "100.77.70.61:5055";
@@ -194,7 +198,7 @@ const String kOptionCustomAsciiKeyboard = "enable-custom-ascii-keyboard";
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv7';
+const String kCustomBuildTag = 'tv8';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";

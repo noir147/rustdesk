@@ -548,7 +548,7 @@ class _RawTouchGestureDetectorRegionState
   // Accumulate finger movement and emit wheel events (shared by the
   // three-finger and, in this custom build, the two-finger vertical drag).
   void _scrollByDelta(double dy) {
-    _mouseScrollIntegral += dy / 4;
+    _mouseScrollIntegral += dy / kFingerScrollPxPerNotch;
     if (_mouseScrollIntegral > 1) {
       inputModel.scroll(1);
       _mouseScrollIntegral = 0;
