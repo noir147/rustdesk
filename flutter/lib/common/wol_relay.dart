@@ -43,18 +43,26 @@ class WolTarget {
 class WolRelay {
   static const Duration _timeout = Duration(seconds: 8);
 
-  /// Relay address as "host:port". Falls back to [kDefaultWolRelay].
+  /// Relay address as "host:port". Falls back to [kDefaultWolRelay],
+  /// which is empty unless this build hardcodes one.
   static String get address {
     final v = bind.mainGetLocalOption(key: kOptionCustomWolRelay).trim();
     return v.isEmpty ? kDefaultWolRelay : v;
   }
 
+  static bool get isConfigured => address.isNotEmpty;
+
   static Future<void> setAddress(String v) =>
       bind.mainSetLocalOption(key: kOptionCustomWolRelay, value: v.trim());
 
-  static Uri _uri(String path, [Map<String, String>? query]) =>
-      Uri.parse('http://$address$path')
-          .replace(queryParameters: query == null || query.isEmpty ? null : query);
+  static Uri _uri(String path, [Map<String, String>? query]) {
+    final addr = address;
+    if (addr.isEmpty) {
+      throw Exception('no relay configured (set it above as host:port)');
+    }
+    return Uri.parse('http://$addr$path')
+        .replace(queryParameters: query == null || query.isEmpty ? null : query);
+  }
 
   static Map<String, dynamic> _decode(http.Response r) {
     final j = jsonDecode(utf8.decode(r.bodyBytes));

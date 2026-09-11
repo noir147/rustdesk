@@ -38,6 +38,11 @@ class _WolPageState extends State<WolPage> {
   }
 
   Future<void> _load({bool rescan = false}) async {
+    if (!WolRelay.isConfigured) {
+      // First run: nothing to query until the relay address is entered above.
+      setState(() => _error = 'set the relay address above (host:port)');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -175,7 +180,7 @@ class _WolPageState extends State<WolPage> {
               controller: _addr,
               decoration: const InputDecoration(
                 labelText: 'Relay (always-on PC, host:port over Tailscale)',
-                hintText: '100.77.70.61:5055',
+                hintText: 'host:port',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

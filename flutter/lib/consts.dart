@@ -185,7 +185,9 @@ const double kTwoFingerPinchIntentScale = 0.06;
 const double kFingerScrollPxPerNotch = 14.0;
 // Custom build: Wake-on-LAN relay (always-on PC running scripts/ops/wol_relay.py).
 const String kOptionCustomWolRelay = "custom-wol-relay";
-const String kDefaultWolRelay = "100.77.70.61:5055";
+// No default: the relay lives on a private network, so its address is entered
+// once in the WoL page rather than baked into this (public) repository.
+const String kDefaultWolRelay = "";
 // Custom build: keep the remote view in place when the soft keyboard opens
 // (no canvas resize / re-centering on the cursor).
 // "enable-" prefix: RustDesk treats these as default ON (option2bool).
