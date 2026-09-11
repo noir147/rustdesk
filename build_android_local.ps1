@@ -42,6 +42,22 @@ $c = [IO.File]::ReadAllText($consts)
 $c2 = [regex]::Replace($c, "const String kCustomBuildTag = '[^']*';", "const String kCustomBuildTag = '$Tag';")
 if ($c2 -ne $c) { [IO.File]::WriteAllText($consts, $c2, (New-Object Text.UTF8Encoding $false)); Write-Host "kCustomBuildTag = $Tag" }
 
+# versionCode: pubspec's build number + the tv<N> tag number, so every published
+# build is a real upgrade for Android instead of a same-version reinstall.
+# --split-per-abi adds 2000 for arm64, so the apk ends up at 2000 + $bn.
+$bnArgs = @()
+$tagNum = [regex]::Match($Tag, '^tv(\d+)$')
+$pubBase = [regex]::Match([IO.File]::ReadAllText((Join-Path $root 'flutter\pubspec.yaml')),
+                          '(?m)^version:\s*\S+\+(\d+)\s*$')
+if ($tagNum.Success -and $pubBase.Success) {
+    $bn = [int]$pubBase.Groups[1].Value + [int]$tagNum.Groups[1].Value
+    $bnArgs = @('--build-number', $bn)
+    Write-Host ("versionCode = {0} + {1} = {2} (arm64 apk reports {3})" -f `
+        $pubBase.Groups[1].Value, $tagNum.Groups[1].Value, $bn, (2000 + $bn))
+} else {
+    Write-Host "versionCode: tag is not tv<N>, leaving pubspec's build number alone"
+}
+
 Push-Location (Join-Path $root 'flutter')
 # Desktop platform folders make `flutter pub get` create plugin symlinks, which
 # needs Developer Mode / admin on Windows. Android-only: park them during the build.
@@ -53,7 +69,7 @@ try {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed' }
-    flutter build apk --release --target-platform android-arm64 --split-per-abi
+    flutter build apk --release --target-platform android-arm64 --split-per-abi @bnArgs
     if ($LASTEXITCODE -ne 0) { throw 'flutter build apk failed' }
     $apk = 'build\app\outputs\flutter-apk\app-arm64-v8a-release.apk'
     if (-not (Test-Path $apk)) { throw "apk not produced: $apk" }

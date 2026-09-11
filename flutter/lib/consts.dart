@@ -200,7 +200,7 @@ const String kOptionCustomAsciiKeyboard = "enable-custom-ascii-keyboard";
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv8';
+const String kCustomBuildTag = 'tv9';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";
