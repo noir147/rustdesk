@@ -37,6 +37,15 @@ class _WolPageState extends State<WolPage> {
     super.dispose();
   }
 
+  // The field is the only way to set the relay now that no address is baked in,
+  // so persist it when focus leaves too, not just on the keyboard's done key.
+  Future<void> _saveAddr() async {
+    final v = _addr.text.trim();
+    if (v == WolRelay.address) return;
+    await WolRelay.setAddress(v);
+    if (mounted) _load();
+  }
+
   Future<void> _load({bool rescan = false}) async {
     if (!WolRelay.isConfigured) {
       // First run: nothing to query until the relay address is entered above.
@@ -176,19 +185,24 @@ class _WolPageState extends State<WolPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _addr,
-              decoration: const InputDecoration(
-                labelText: 'Relay (always-on PC, host:port over Tailscale)',
-                hintText: 'host:port',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              keyboardType: TextInputType.url,
-              onSubmitted: (v) async {
-                await WolRelay.setAddress(v);
-                _load();
+            child: Focus(
+              onFocusChange: (hasFocus) {
+                if (!hasFocus) _saveAddr();
               },
+              child: TextField(
+                controller: _addr,
+                decoration: const InputDecoration(
+                  labelText: 'Relay (always-on PC, host:port over Tailscale)',
+                  hintText: 'host:port',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                keyboardType: TextInputType.url,
+                onSubmitted: (v) async {
+                  await WolRelay.setAddress(v.trim());
+                  _load();
+                },
+              ),
             ),
           ),
           if (_loading) const LinearProgressIndicator(),
