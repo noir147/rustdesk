@@ -381,23 +381,45 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   // Custom build: legacy character events are injected on Windows as
   // KEYEVENTF_UNICODE, which bypasses the IME (typing 'a' with the Japanese
   // IME on gives 'a', not 'あ'). Sending the key as a physical key press in
-  // map mode makes the IME see VK_A and compose. Android key code, evdev
-  // scan code (+8 as RustDesk does for Android) and shift for US/JIS-safe keys.
-  static const Map<String, List<int>> _physKeys = {
-    'a': [29, 30, 0], 'b': [30, 48, 0], 'c': [31, 46, 0], 'd': [32, 32, 0],
-    'e': [33, 18, 0], 'f': [34, 33, 0], 'g': [35, 34, 0], 'h': [36, 35, 0],
-    'i': [37, 23, 0], 'j': [38, 36, 0], 'k': [39, 37, 0], 'l': [40, 38, 0],
-    'm': [41, 50, 0], 'n': [42, 49, 0], 'o': [43, 24, 0], 'p': [44, 25, 0],
-    'q': [45, 16, 0], 'r': [46, 19, 0], 's': [47, 31, 0], 't': [48, 20, 0],
-    'u': [49, 22, 0], 'v': [50, 47, 0], 'w': [51, 17, 0], 'x': [52, 45, 0],
-    'y': [53, 21, 0], 'z': [54, 44, 0],
-    '1': [8, 2, 0], '2': [9, 3, 0], '3': [10, 4, 0], '4': [11, 5, 0],
-    '5': [12, 6, 0], '6': [13, 7, 0], '7': [14, 8, 0], '8': [15, 9, 0],
-    '9': [16, 10, 0], '0': [7, 11, 0],
-    '-': [69, 12, 0], ',': [55, 51, 0], '.': [56, 52, 0], '/': [76, 53, 0],
-    ' ': [62, 57, 0],
+  // map mode makes the IME see VK_A and compose.
+  //
+  // The key must travel as a USB HID usage code, not as an Android key code /
+  // evdev scan code: on an Android controller `_map_keyboard_mode`
+  // (src/keyboard.rs) derives the peer's scan code from `event.usb_hid` alone,
+  // and the raw-key path (`inputRawKey`) hardcodes that field to 0, so every
+  // key sent that way is dropped before it reaches the peer.
+  static const Map<String, PhysicalKeyboardKey> _physKeys = {
+    'a': PhysicalKeyboardKey.keyA, 'b': PhysicalKeyboardKey.keyB,
+    'c': PhysicalKeyboardKey.keyC, 'd': PhysicalKeyboardKey.keyD,
+    'e': PhysicalKeyboardKey.keyE, 'f': PhysicalKeyboardKey.keyF,
+    'g': PhysicalKeyboardKey.keyG, 'h': PhysicalKeyboardKey.keyH,
+    'i': PhysicalKeyboardKey.keyI, 'j': PhysicalKeyboardKey.keyJ,
+    'k': PhysicalKeyboardKey.keyK, 'l': PhysicalKeyboardKey.keyL,
+    'm': PhysicalKeyboardKey.keyM, 'n': PhysicalKeyboardKey.keyN,
+    'o': PhysicalKeyboardKey.keyO, 'p': PhysicalKeyboardKey.keyP,
+    'q': PhysicalKeyboardKey.keyQ, 'r': PhysicalKeyboardKey.keyR,
+    's': PhysicalKeyboardKey.keyS, 't': PhysicalKeyboardKey.keyT,
+    'u': PhysicalKeyboardKey.keyU, 'v': PhysicalKeyboardKey.keyV,
+    'w': PhysicalKeyboardKey.keyW, 'x': PhysicalKeyboardKey.keyX,
+    'y': PhysicalKeyboardKey.keyY, 'z': PhysicalKeyboardKey.keyZ,
+    '1': PhysicalKeyboardKey.digit1, '2': PhysicalKeyboardKey.digit2,
+    '3': PhysicalKeyboardKey.digit3, '4': PhysicalKeyboardKey.digit4,
+    '5': PhysicalKeyboardKey.digit5, '6': PhysicalKeyboardKey.digit6,
+    '7': PhysicalKeyboardKey.digit7, '8': PhysicalKeyboardKey.digit8,
+    '9': PhysicalKeyboardKey.digit9, '0': PhysicalKeyboardKey.digit0,
+    '-': PhysicalKeyboardKey.minus, ',': PhysicalKeyboardKey.comma,
+    '.': PhysicalKeyboardKey.period, '/': PhysicalKeyboardKey.slash,
+    ' ': PhysicalKeyboardKey.space,
   };
-  static const int _kcShiftLeft = 59, _scShiftLeft = 42;
+  static const PhysicalKeyboardKey _shiftKey = PhysicalKeyboardKey.shiftLeft;
+
+  // `character` is ignored by map mode (it only feeds the unicode fallback of
+  // the legacy/translate modes), so passing it keeps those modes typing rather
+  // than swallowing the key if the session is not in map mode after all.
+  void _sendPhysKey(PhysicalKeyboardKey key, String character, bool down) {
+    inputModel.newKeyboardMode(
+        character, key.usbHidUsage & 0xFFFF, down, false);
+  }
 
   bool _inputAsciiAsPhysicalKey(String char) {
     if (char.length != 1) return false;
@@ -405,19 +427,19 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     var shift = false;
     if (key == null) {
       final lower = char.toLowerCase();
-      if (lower != char && _physKeys.containsKey(lower)) {
+      if (lower != char) {
         key = _physKeys[lower];
-        shift = true;
+        shift = key != null;
       }
     }
     if (key == null) return false;
     if (shift) {
-      inputModel.inputRawKey('', _kcShiftLeft, _scShiftLeft + 8, true, false);
+      _sendPhysKey(_shiftKey, '', true);
     }
-    inputModel.inputRawKey('', key[0], key[1] + 8, true, false);
-    inputModel.inputRawKey('', key[0], key[1] + 8, false, false);
+    _sendPhysKey(key, char, true);
+    _sendPhysKey(key, char, false);
     if (shift) {
-      inputModel.inputRawKey('', _kcShiftLeft, _scShiftLeft + 8, false, false);
+      _sendPhysKey(_shiftKey, '', false);
     }
     return true;
   }
