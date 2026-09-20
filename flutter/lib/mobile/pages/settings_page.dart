@@ -21,6 +21,7 @@ import '../widgets/deploy_dialog.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
+import '../../common/wol_relay.dart';
 import 'wol_page.dart';
 import '../../common/custom_update.dart';
 
@@ -814,10 +815,20 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           // Custom build: Wake-on-LAN via relay
           SettingsTile(
               title: const Text('Wake-on-LAN'),
+              // No relay address is compiled in, so show whether one is set:
+              // without it both this page and the peer menu action just fail.
+              description: Text(WolRelay.isConfigured
+                  ? 'Relay ${WolRelay.address}'
+                  : 'No relay set'),
               leading: const Icon(Icons.power_settings_new),
               onPressed: (context) {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const WolPage()));
+                Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const WolPage()))
+                    .then((_) {
+                  if (mounted) setState(() {});
+                });
               }),
           SettingsTile.switchTile(
             title: const Text('Keep screen in place when keyboard opens'),

@@ -58,7 +58,7 @@ class WolRelay {
   static Uri _uri(String path, [Map<String, String>? query]) {
     final addr = address;
     if (addr.isEmpty) {
-      throw Exception('no relay configured (set it above as host:port)');
+      throw Exception('no WoL relay configured (Settings > Wake-on-LAN)');
     }
     return Uri.parse('http://$addr$path')
         .replace(queryParameters: query == null || query.isEmpty ? null : query);
