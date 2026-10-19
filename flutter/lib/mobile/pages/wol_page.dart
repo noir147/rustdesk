@@ -40,7 +40,9 @@ class _WolPageState extends State<WolPage> {
   // The field is the only way to set the relay now that no address is baked in,
   // so persist it when focus leaves too, not just on the keyboard's done key.
   Future<void> _saveAddr() async {
-    final v = _addr.text.trim();
+    // Compare normalized, or a fullwidth-typed address never matches the stored
+    // one and every focus change writes again.
+    final v = WolRelay.normalizeAddress(_addr.text);
     if (v == WolRelay.address) return;
     await WolRelay.setAddress(v);
     if (mounted) _load();

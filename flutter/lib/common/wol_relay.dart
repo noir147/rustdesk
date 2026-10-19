@@ -43,17 +43,37 @@ class WolTarget {
 class WolRelay {
   static const Duration _timeout = Duration(seconds: 8);
 
+  /// A Japanese IME types "１００．７７．７０．６１：５０５５" for what looks like
+  /// an address, and Uri.parse then throws FormatException on the fullwidth
+  /// digits, dots and colon. Fold U+FF01..U+FF5E back onto ASCII and drop the
+  /// spaces an IME likes to leave behind, so the field accepts what the phone
+  /// actually produces.
+  static String normalizeAddress(String v) {
+    final sb = StringBuffer();
+    for (final rune in v.runes) {
+      if (rune >= 0xFF01 && rune <= 0xFF5E) {
+        sb.writeCharCode(rune - 0xFF01 + 0x21);
+      } else if (rune == 0x3000) {
+        // ideographic space: drop it like the ASCII ones below
+      } else {
+        sb.writeCharCode(rune);
+      }
+    }
+    return sb.toString().replaceAll(RegExp(r'\s'), '');
+  }
+
   /// Relay address as "host:port". Falls back to [kDefaultWolRelay],
   /// which is empty unless this build hardcodes one.
   static String get address {
-    final v = bind.mainGetLocalOption(key: kOptionCustomWolRelay).trim();
+    final v =
+        normalizeAddress(bind.mainGetLocalOption(key: kOptionCustomWolRelay));
     return v.isEmpty ? kDefaultWolRelay : v;
   }
 
   static bool get isConfigured => address.isNotEmpty;
 
-  static Future<void> setAddress(String v) =>
-      bind.mainSetLocalOption(key: kOptionCustomWolRelay, value: v.trim());
+  static Future<void> setAddress(String v) => bind.mainSetLocalOption(
+      key: kOptionCustomWolRelay, value: normalizeAddress(v));
 
   static Uri _uri(String path, [Map<String, String>? query]) {
     final addr = address;
