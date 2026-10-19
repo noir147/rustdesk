@@ -855,7 +855,22 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             onPressed: (context) => CustomUpdate.checkNow(context),
           ),
           SettingsTile.switchTile(
+            title: const Text('Move view to the input field when typing'),
+            description: const Text(
+                'Scrolls the remote view so the field you are typing into stays visible'),
+            leading: const Icon(Icons.vertical_align_center),
+            initialValue:
+                mainGetLocalBoolOptionSync(kOptionCustomFocusInputOnKeyboard),
+            onToggle: (v) async {
+              await mainSetLocalBoolOption(
+                  kOptionCustomFocusInputOnKeyboard, v);
+              setState(() {});
+            },
+          ),
+          SettingsTile.switchTile(
             title: const Text('ASCII keyboard only (PC IME converts)'),
+            description: const Text(
+                'Off: the phone IME composes Japanese and the committed text is sent'),
             leading: const Icon(Icons.keyboard_alt_outlined),
             initialValue: mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard),
             onToggle: (v) async {

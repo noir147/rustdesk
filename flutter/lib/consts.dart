@@ -194,13 +194,20 @@ const String kDefaultWolRelay = "";
 const String kOptionCustomKeepCanvasOnKeyboard = "enable-custom-keep-canvas-on-keyboard";
 // Custom build: ask Android for a plain ASCII (secure) keyboard so the phone
 // IME never composes full-width text; conversion is left to the PC IME.
-const String kOptionCustomAsciiKeyboard = "enable-custom-ascii-keyboard";
+// "allow-" prefix: off unless explicitly "Y", so the phone IME composes
+// Japanese by default and the committed text is sent as a string.
+const String kOptionCustomAsciiKeyboard = "allow-custom-ascii-keyboard";
+// Custom build: move the view so the remote cursor (i.e. the text field being
+// typed into) stays visible when the soft keyboard opens. Separate from
+// kOptionCustomKeepCanvasOnKeyboard, which only governs the canvas *size*.
+const String kOptionCustomFocusInputOnKeyboard =
+    "enable-custom-focus-input-on-keyboard";
 // Custom build: this phone is only ever the controller; the controlled-side
 // services are removed from the Android manifest, so hide their UI too.
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv12';
+const String kCustomBuildTag = 'tv13';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";

@@ -3034,7 +3034,7 @@ class CursorModel with ChangeNotifier {
     }
     if (isMobile &&
         _lastKeyboardIsVisible != keyboardIsVisible &&
-        !mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard)) {
+        mainGetLocalBoolOptionSync(kOptionCustomFocusInputOnKeyboard)) {
       if (keyboardIsVisible) {
         parent.target?.canvasModel.saveMobileOffsetBeforeSoftKeyboard();
         parent.target?.canvasModel.mobileFocusCanvasCursor();

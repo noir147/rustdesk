@@ -68,51 +68,70 @@ class _WolPageState extends State<WolPage> {
     }
   }
 
-  Future<void> _wake(WolTarget t, {bool direct = false}) async {
-    setState(() => _msg[t.name] = direct ? 'Sending (direct)…' : 'Sending via relay…');
+  // One button instead of two: go through the relay, and fall back to a magic
+  // packet sent by this device when the relay cannot be reached -- which is the
+  // case on the target's own LAN with Tailscale off, since the relay is
+  // addressed by its tailnet IP.
+  Future<void> _wake(WolTarget t) async {
+    setState(() => _msg[t.name] = 'Sending via relay…');
     try {
-      final n = direct
-          ? await WolRelay.sendMagicPacketDirect(t.mac)
-          : await WolRelay.wake(name: t.name);
+      final n = await WolRelay.wake(name: t.name);
       if (!mounted) return;
-      setState(() => _msg[t.name] = 'Sent $n packets. Waiting for ${t.label}…');
-      _polls[t.name]?.cancel();
-      var k = 0;
-      _polls[t.name] = Timer.periodic(const Duration(seconds: 3), (timer) async {
-        k++;
-        bool up = false;
-        try {
-          up = await WolRelay.isUp(t.name);
-        } catch (_) {}
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-        if (up || k >= 30) {
-          timer.cancel();
-          setState(() {
-            _msg[t.name] = up ? 'Online' : 'No response within 90s';
-            if (up) {
-              _targets = _targets
-                  .map((x) => x.name == t.name
-                      ? WolTarget(
-                          name: x.name,
-                          label: x.label,
-                          mac: x.mac,
-                          lastIp: x.lastIp,
-                          source: x.source,
-                          learnedAt: x.learnedAt,
-                          up: true)
-                      : x)
-                  .toList();
-            }
-          });
-        }
-      });
-    } catch (e) {
+      setState(() =>
+          _msg[t.name] = 'Sent $n packets via relay. Waiting for ${t.label}…');
+      _pollUntilUp(t);
+    } catch (relayErr) {
       if (!mounted) return;
-      setState(() => _msg[t.name] = 'Failed: $e');
+      setState(() => _msg[t.name] = 'Relay unreachable, sending directly…');
+      try {
+        final n = await WolRelay.sendMagicPacketDirect(t.mac);
+        if (!mounted) return;
+        // Without the relay there is nothing to poll for the target's state.
+        setState(() => _msg[t.name] = n > 0
+            ? 'Sent $n packets directly (relay down, cannot confirm)'
+            : 'Direct send reported 0 packets (relay: $relayErr)');
+      } catch (directErr) {
+        if (!mounted) return;
+        setState(() =>
+            _msg[t.name] = 'Failed. relay: $relayErr / direct: $directErr');
+      }
     }
+  }
+
+  void _pollUntilUp(WolTarget t) {
+    _polls[t.name]?.cancel();
+    var k = 0;
+    _polls[t.name] = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      k++;
+      bool up = false;
+      try {
+        up = await WolRelay.isUp(t.name);
+      } catch (_) {}
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (up || k >= 30) {
+        timer.cancel();
+        setState(() {
+          _msg[t.name] = up ? 'Online' : 'No response within 90s';
+          if (up) {
+            _targets = _targets
+                .map((x) => x.name == t.name
+                    ? WolTarget(
+                        name: x.name,
+                        label: x.label,
+                        mac: x.mac,
+                        lastIp: x.lastIp,
+                        source: x.source,
+                        learnedAt: x.learnedAt,
+                        up: true)
+                    : x)
+                .toList();
+          }
+        });
+      }
+    });
   }
 
   Widget _card(WolTarget t) {
@@ -138,20 +157,14 @@ class _WolPageState extends State<WolPage> {
             Text(t.up ? 'Online' : 'Offline / sleeping',
                 style: TextStyle(color: t.up ? Colors.green : Colors.orange)),
             const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.power_settings_new),
-                  label: const Text('Wake (relay)'),
-                  onPressed: () => _wake(t),
-                ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('Wake'),
+                onPressed: () => _wake(t),
               ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () => _wake(t, direct: true),
-                child: const Text('Direct'),
-              ),
-            ]),
+            ),
             if (_msg[t.name] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 6),

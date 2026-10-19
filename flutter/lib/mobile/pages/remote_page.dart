@@ -632,6 +632,17 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     );
   }
 
+  // Custom build: copy / paste from the always-visible bar, so the clipboard
+  // can be driven without opening the soft keyboard (and its key bar).
+  // inputKey() picks up inputModel's sticky modifiers, so set ctrl just for
+  // this chord and put it back as the user left it.
+  void _sendCtrlChord(String vk) {
+    final saved = inputModel.ctrl;
+    inputModel.ctrl = true;
+    inputModel.inputKey(vk);
+    inputModel.ctrl = saved;
+  }
+
   Widget getBottomAppBar() {
     final ffiModel = Provider.of<FfiModel>(context);
     return BottomAppBar(
@@ -686,6 +697,18 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                     : Icons.mouse),
                                 onPressed: () => setState(
                                     () => _showGestureHelp = !_showGestureHelp),
+                              ),
+                              IconButton(
+                                color: Colors.white,
+                                tooltip: 'Copy (Ctrl+C)',
+                                icon: const Icon(Icons.content_copy),
+                                onPressed: () => _sendCtrlChord('VK_C'),
+                              ),
+                              IconButton(
+                                color: Colors.white,
+                                tooltip: 'Paste (Ctrl+V)',
+                                icon: const Icon(Icons.content_paste),
+                                onPressed: () => _sendCtrlChord('VK_V'),
                               ),
                             ]) +
                   (isWeb
