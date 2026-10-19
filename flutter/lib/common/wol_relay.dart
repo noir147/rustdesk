@@ -16,6 +16,7 @@ class WolTarget {
   final String mac;
   final String? lastIp;
   final String? source;
+  final String? hostname;
   final String? learnedAt;
   final bool up;
 
@@ -25,9 +26,17 @@ class WolTarget {
     required this.mac,
     this.lastIp,
     this.source,
+    this.hostname,
     this.learnedAt,
     this.up = false,
   });
+
+  /// The relay's LAN sweep lists every ARP neighbour, so most entries are
+  /// phones, TVs and the router -- nothing worth sending a magic packet to.
+  /// A target is worth showing when it was configured by hand or when the
+  /// sweep at least resolved a name for it.
+  bool get isNamed =>
+      source == 'config' || (hostname != null && hostname!.isNotEmpty);
 
   factory WolTarget.fromJson(Map<String, dynamic> j) => WolTarget(
         name: (j['name'] ?? '') as String,
@@ -35,6 +44,7 @@ class WolTarget {
         mac: (j['mac'] ?? '') as String,
         lastIp: j['last_ip'] as String?,
         source: j['source'] as String?,
+        hostname: j['hostname'] as String?,
         learnedAt: j['learned_at'] as String?,
         up: j['up'] == true,
       );

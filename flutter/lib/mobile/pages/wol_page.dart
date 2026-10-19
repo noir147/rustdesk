@@ -126,6 +126,7 @@ class _WolPageState extends State<WolPage> {
                         mac: x.mac,
                         lastIp: x.lastIp,
                         source: x.source,
+                        hostname: x.hostname,
                         learnedAt: x.learnedAt,
                         up: true)
                     : x)
@@ -232,7 +233,24 @@ class _WolPageState extends State<WolPage> {
                 ? Center(
                     child: Text(translate('Empty')),
                   )
-                : ListView(children: _targets.map(_card).toList()),
+                : Builder(builder: (context) {
+                    final named =
+                        _targets.where((t) => t.isNamed).toList();
+                    final unnamed =
+                        _targets.where((t) => !t.isNamed).toList();
+                    return ListView(children: [
+                      ...named.map(_card),
+                      if (unnamed.isNotEmpty)
+                        ExpansionTile(
+                          leading: const Icon(Icons.devices_other),
+                          title: Text(
+                              'Unnamed LAN devices (${unnamed.length})'),
+                          subtitle: const Text(
+                              'Found by the relay’s ARP sweep; usually not wakeable'),
+                          children: unnamed.map(_card).toList(),
+                        ),
+                    ]);
+                  }),
           ),
         ],
       ),
