@@ -326,6 +326,18 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
   }
 
+  // Edits reach the peer one at a time. bind.sessionInputKey and
+  // bind.sessionInputString are dispatched onto a Rust worker pool
+  // (executeNormal), so firing them off without awaiting lets them arrive out
+  // of order -- typing "まだ起動してる？" came out as "まだしてる？起動", the
+  // converted word overtaking everything after it. Chaining the edits and
+  // awaiting every call inside one keeps the order they were typed in.
+  Future<void> _inputChain = Future<void>.value();
+
+  void _enqueueInput(Future<void> Function() op) {
+    _inputChain = _inputChain.then((_) => op()).catchError((Object _) {});
+  }
+
   void _handleNonIOSSoftKeyboardInput(String newValue) {
     var oldValue = _value;
     _value = newValue;
@@ -340,33 +352,40 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     // it, so the diff is computed on the common prefix. See
     // common/soft_keyboard_edit.dart, which is unit tested.
     final e = computeSoftKeyboardEdit(oldValue, newValue);
-    for (var k = e.backspaces; k > 0; k--) {
-      inputModel.inputKey('VK_BACK');
-    }
-    final content = e.insert;
-    if (content.isEmpty) {
+    if (e.isEmpty) {
       return;
     }
-    if (content.length > 1) {
-      if (oldValue != '' &&
-          content.length == 2 &&
-          (content == '""' ||
-              content == '()' ||
-              content == '[]' ||
-              content == '<>' ||
-              content == "{}" ||
-              content == '”“' ||
-              content == '《》' ||
-              content == '（）' ||
-              content == '【】')) {
-        // can not only input content[0], because when input ], [ are also auo insert, which cause ] never be input
-        bind.sessionInputString(sessionId: sessionId, value: content);
-        _openKeyboardUnlocked();
+    final content = e.insert;
+    // Auto-paired brackets: the peer has to receive both, because typing just
+    // the opener makes its editor insert a closer of its own and the real one
+    // then never arrives.
+    final isAutoPair = oldValue != '' &&
+        e.backspaces == 0 &&
+        content.length == 2 &&
+        (content == '""' ||
+            content == '()' ||
+            content == '[]' ||
+            content == '<>' ||
+            content == "{}" ||
+            content == '”“' ||
+            content == '《》' ||
+            content == '（）' ||
+            content == '【】');
+    _enqueueInput(() async {
+      for (var k = e.backspaces; k > 0; k--) {
+        await inputModel.inputKeyAsync('VK_BACK');
+      }
+      if (content.isEmpty) {
         return;
       }
-      bind.sessionInputString(sessionId: sessionId, value: content);
-    } else {
-      inputChar(content);
+      if (content.length > 1) {
+        await bind.sessionInputString(sessionId: sessionId, value: content);
+      } else {
+        await inputCharAsync(content);
+      }
+    });
+    if (isAutoPair) {
+      _openKeyboardUnlocked();
     }
   }
 
@@ -420,12 +439,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   // `character` is ignored by map mode (it only feeds the unicode fallback of
   // the legacy/translate modes), so passing it keeps those modes typing rather
   // than swallowing the key if the session is not in map mode after all.
-  void _sendPhysKey(PhysicalKeyboardKey key, String character, bool down) {
-    inputModel.newKeyboardMode(
-        character, key.usbHidUsage & 0xFFFF, down, false);
-  }
+  Future<void> _sendPhysKey(
+          PhysicalKeyboardKey key, String character, bool down) =>
+      inputModel.newKeyboardModeAsync(
+          character, key.usbHidUsage & 0xFFFF, down, false);
 
-  bool _inputAsciiAsPhysicalKey(String char) {
+  // Awaited in order: shift down, key down, key up, shift up. Fired off without
+  // awaiting, the worker pool can run them in any order and the peer sees a
+  // stuck or mistimed shift.
+  Future<bool> _inputAsciiAsPhysicalKey(String char) async {
     if (char.length != 1) return false;
     var key = _physKeys[char];
     var shift = false;
@@ -438,25 +460,25 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
     if (key == null) return false;
     if (shift) {
-      _sendPhysKey(_shiftKey, '', true);
+      await _sendPhysKey(_shiftKey, '', true);
     }
-    _sendPhysKey(key, char, true);
-    _sendPhysKey(key, char, false);
+    await _sendPhysKey(key, char, true);
+    await _sendPhysKey(key, char, false);
     if (shift) {
-      _sendPhysKey(_shiftKey, '', false);
+      await _sendPhysKey(_shiftKey, '', false);
     }
     return true;
   }
 
-  void inputChar(String char) {
+  Future<void> inputCharAsync(String char) async {
     if (!inputModel.keyboardInputAllowed) {
       return;
     }
     if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard) &&
         gFFI.ffiModel.pi.platform == kPeerPlatformWindows &&
         char != '\n') {
-      if (_inputAsciiAsPhysicalKey(char)) return;
-      inputModel.inputKey(char);
+      if (await _inputAsciiAsPhysicalKey(char)) return;
+      await inputModel.inputKeyAsync(char);
       return;
     }
     if (char == '\n') {
@@ -464,7 +486,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     } else if (char == ' ') {
       char = 'VK_SPACE';
     }
-    inputModel.inputKey(char);
+    await inputModel.inputKeyAsync(char);
+  }
+
+  void inputChar(String char) {
+    inputCharAsync(char);
   }
 
   void openKeyboard() {

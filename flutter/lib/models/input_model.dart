@@ -925,15 +925,20 @@ class InputModel {
   }
 
   /// Send Key Event
-  void newKeyboardMode(
+  Future<void> newKeyboardModeAsync(
       String character, int usbHid, bool down, bool iosCapsLock) {
     final lockModes = _buildLockModes(iosCapsLock);
-    bind.sessionHandleFlutterKeyEvent(
+    return bind.sessionHandleFlutterKeyEvent(
         sessionId: sessionId,
         character: character,
         usbHid: usbHid,
         lockModes: lockModes,
         downOrUp: down);
+  }
+
+  void newKeyboardMode(
+      String character, int usbHid, bool down, bool iosCapsLock) {
+    newKeyboardModeAsync(character, usbHid, down, iosCapsLock);
   }
 
   void mapKeyboardModeRaw(RawKeyEvent e, bool iosCapsLock) {
@@ -1026,10 +1031,15 @@ class InputModel {
   /// Send key stroke event.
   /// [down] indicates the key's state(down or up).
   /// [press] indicates a click event(down and up).
-  void inputKey(String name, {bool? down, bool? press}) {
-    if (!keyboardPerm) return;
-    if (isViewCamera) return;
-    bind.sessionInputKey(
+  // The bridge dispatches these onto a Rust worker pool (executeNormal), so two
+  // calls made back to back are not guaranteed to reach the peer in that order.
+  // Callers that need a sequence kept -- a soft-keyboard edit, a shifted key --
+  // await the *Async variants; the void wrappers keep every existing
+  // fire-and-forget caller unchanged.
+  Future<void> inputKeyAsync(String name, {bool? down, bool? press}) {
+    if (!keyboardPerm) return Future<void>.value();
+    if (isViewCamera) return Future<void>.value();
+    return bind.sessionInputKey(
         sessionId: sessionId,
         name: name,
         down: down ?? false,
@@ -1038,6 +1048,10 @@ class InputModel {
         ctrl: ctrl,
         shift: shift,
         command: command);
+  }
+
+  void inputKey(String name, {bool? down, bool? press}) {
+    inputKeyAsync(name, down: down, press: press);
   }
 
   static Map<String, dynamic> getMouseEventMove() => {
