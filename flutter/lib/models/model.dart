@@ -2303,7 +2303,11 @@ class CanvasModel with ChangeNotifier {
       // Vertically, subtract the bottom keyboard inset (viewInsets.bottom) and any
       // bottom overlay (e.g. key-help tools) so the canvas is not covered.
       // Custom build: optionally keep the canvas size (keyboard overlays it).
-      if (!mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard)) {
+      // Not when we also scroll to the caret: _moveToCenterCursor centers
+      // against size.height, so a canvas that ignores the keyboard parks the
+      // field being typed into right behind it.
+      if (!mainGetLocalBoolOptionSync(kOptionCustomKeepCanvasOnKeyboard) ||
+          mainGetLocalBoolOptionSync(kOptionCustomFocusInputOnKeyboard)) {
         h = h -
             mediaData.viewInsets.bottom -
             (parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ??
