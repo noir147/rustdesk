@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
+import 'package:flutter_hbb/common/soft_keyboard_edit.dart';
 import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/mobile/widgets/floating_mouse.dart';
@@ -336,28 +337,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       oldValue = '';
     }
     // A Japanese IME rewrites the text it is composing rather than appending to
-    // it ("にほん" -> "日本"), so the old append-only comparison dropped
-    // same-length replacements entirely and sent a single backspace for any
-    // shrink, without the replacement text -- characters went missing as you
-    // typed. Diff on the common prefix instead: erase what went away, send what
-    // arrived.
-    var i = 0;
-    while (i < oldValue.length &&
-        i < newValue.length &&
-        oldValue.codeUnitAt(i) == newValue.codeUnitAt(i)) {
-      i++;
-    }
-    // Never cut between the halves of a surrogate pair (emoji).
-    if (i > 0 && i < oldValue.length && i < newValue.length) {
-      final prev = newValue.codeUnitAt(i - 1);
-      if (prev >= 0xD800 && prev <= 0xDBFF) {
-        i--;
-      }
-    }
-    for (var k = oldValue.length - i; k > 0; k--) {
+    // it, so the diff is computed on the common prefix. See
+    // common/soft_keyboard_edit.dart, which is unit tested.
+    final e = computeSoftKeyboardEdit(oldValue, newValue);
+    for (var k = e.backspaces; k > 0; k--) {
       inputModel.inputKey('VK_BACK');
     }
-    final content = newValue.substring(i);
+    final content = e.insert;
     if (content.isEmpty) {
       return;
     }
