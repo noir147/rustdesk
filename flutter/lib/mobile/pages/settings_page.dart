@@ -868,6 +868,17 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             },
           ),
           SettingsTile.switchTile(
+            title: const Text('Turn the PC IME off when typing starts'),
+            description: const Text(
+                'Sent once per session as 半/全. It is a toggle, so use the 半/全 key if the PC IME ends up the wrong way round'),
+            leading: const Icon(Icons.translate),
+            initialValue: mainGetLocalBoolOptionSync(kOptionCustomPeerImeOff),
+            onToggle: (v) async {
+              await mainSetLocalBoolOption(kOptionCustomPeerImeOff, v);
+              setState(() {});
+            },
+          ),
+          SettingsTile.switchTile(
             title: const Text('ASCII keyboard only (PC IME converts)'),
             description: const Text(
                 'Off: the phone IME composes Japanese and the committed text is sent'),

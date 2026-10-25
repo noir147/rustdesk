@@ -1,4 +1,4 @@
-import 'package:flutter/gestures.dart';
+﻿import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -197,6 +197,10 @@ const String kOptionCustomKeepCanvasOnKeyboard = "enable-custom-keep-canvas-on-k
 // "allow-" prefix: off unless explicitly "Y", so the phone IME composes
 // Japanese by default and the committed text is sent as a string.
 const String kOptionCustomAsciiKeyboard = "allow-custom-ascii-keyboard";
+// Custom build: with the phone's IME converting, the peer's IME has to be off
+// or the characters we send get reordered by its composition buffer. Sent as
+// VK_KANJI once per session -- it is a toggle, so see _turnOffPeerImeOnce.
+const String kOptionCustomPeerImeOff = "enable-custom-peer-ime-off";
 // Custom build: move the view so the remote cursor (i.e. the text field being
 // typed into) stays visible when the soft keyboard opens. Separate from
 // kOptionCustomKeepCanvasOnKeyboard, which only governs the canvas *size*.
@@ -207,7 +211,7 @@ const String kOptionCustomFocusInputOnKeyboard =
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv18';
+const String kCustomBuildTag = 'tv21';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";
@@ -460,7 +464,7 @@ const String kCustomScalePercentKey =
 const int kScaleCustomMinPercent = 5;
 const int kScaleCustomPivotPercent = 100; // 100% should be at 1/3 of track
 const int kScaleCustomMaxPercent = 1000;
-const double kScaleCustomPivotPos = 1.0 / 3.0; // first 1/3 → up to 100%
+const double kScaleCustomPivotPos = 1.0 / 3.0; // first 1/3 竊・up to 100%
 const double kScaleCustomDetentEpsilon =
     0.006; // snap range around pivot (~0.6%)
 const Duration kDebounceCustomScaleDuration = Duration(milliseconds: 300);

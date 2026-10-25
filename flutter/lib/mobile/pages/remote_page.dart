@@ -378,10 +378,18 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       if (content.isEmpty) {
         return;
       }
-      if (content.length > 1) {
+      // Single characters sent as key events arrive in order; a multi-character
+      // seq string does not -- "起動" sent as a seq landed after the "の" typed
+      // after it. Send non-ASCII runs character by character down the same path
+      // the single characters already take. Pure ASCII keeps the seq, which is
+      // both faster and has not misbehaved (it is also what a paste uses).
+      final isAscii = content.codeUnits.every((c) => c >= 0x20 && c < 0x7F);
+      if (content.length > 1 && isAscii) {
         await bind.sessionInputString(sessionId: sessionId, value: content);
       } else {
-        await inputCharAsync(content);
+        for (final ch in content.characters) {
+          await inputCharAsync(ch);
+        }
       }
     });
     if (isAutoPair) {
@@ -489,6 +497,26 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     await inputModel.inputKeyAsync(char);
   }
 
+  // Custom build: when the phone's IME does the conversion, the peer's IME must
+  // be off. With both on, the Japanese characters we send land in the peer
+  // IME's composition buffer and come out reordered -- typing
+  // "こんにちは。起動のテスト" produced "こんにちは。のテスト起動".
+  //
+  // VK_KANJI is a toggle; RustDesk's key map has no explicit "IME off"
+  // (no VK_IME_OFF), so this cannot be made idempotent. Send it once per
+  // session, on the first keyboard open, where Windows' Japanese IME is
+  // on by default. The 半/全 key on the virtual bar corrects the other case.
+  bool _sentPeerImeOff = false;
+
+  void _turnOffPeerImeOnce() {
+    if (_sentPeerImeOff) return;
+    if (!mainGetLocalBoolOptionSync(kOptionCustomPeerImeOff)) return;
+    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard)) return;
+    if (gFFI.ffiModel.pi.platform != kPeerPlatformWindows) return;
+    _sentPeerImeOff = true;
+    inputModel.inputKey('VK_KANJI');
+  }
+
   void inputChar(String char) {
     inputCharAsync(char);
   }
@@ -523,6 +551,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         gFFI.ffiModel.pi.platform == kPeerPlatformWindows) {
       bind.sessionSetKeyboardMode(sessionId: sessionId, value: 'map');
     }
+    _turnOffPeerImeOnce();
     gFFI.invokeMethod("enable_soft_keyboard", true);
     // destroy first, so that our _value trick can work
     _value = initText;
