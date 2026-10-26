@@ -870,7 +870,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
           SettingsTile.switchTile(
             title: const Text('Turn the PC IME off when typing starts'),
             description: const Text(
-                'Sent once per session as 半/全. It is a toggle, so use the 半/全 key if the PC IME ends up the wrong way round'),
+                'Only for a PC that keeps IME state per window. 半/全 is a toggle, so where the state is shared every session flips it back — there, leave this off and switch the PC IME off once by hand'),
             leading: const Icon(Icons.translate),
             initialValue: mainGetLocalBoolOptionSync(kOptionCustomPeerImeOff),
             onToggle: (v) async {

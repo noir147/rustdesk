@@ -199,8 +199,12 @@ const String kOptionCustomKeepCanvasOnKeyboard = "enable-custom-keep-canvas-on-k
 const String kOptionCustomAsciiKeyboard = "allow-custom-ascii-keyboard";
 // Custom build: with the phone's IME converting, the peer's IME has to be off
 // or the characters we send get reordered by its composition buffer. Sent as
-// VK_KANJI once per session -- it is a toggle, so see _turnOffPeerImeOnce.
-const String kOptionCustomPeerImeOff = "enable-custom-peer-ime-off";
+// VK_KANJI once per session -- but that is a toggle, and Windows keeps the IME
+// state shared across windows unless "use a different input method for each app
+// window" is on, so on a shared setup every new session flips it back. Off by
+// default ("allow-" prefix): turn the peer's IME off once by hand and it stays.
+// Only worth enabling when the peer keeps IME state per window.
+const String kOptionCustomPeerImeOff = "allow-custom-peer-ime-off";
 // Custom build: move the view so the remote cursor (i.e. the text field being
 // typed into) stays visible when the soft keyboard opens. Separate from
 // kOptionCustomKeepCanvasOnKeyboard, which only governs the canvas *size*.
@@ -211,7 +215,7 @@ const String kOptionCustomFocusInputOnKeyboard =
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv21';
+const String kCustomBuildTag = 'tv22';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";
