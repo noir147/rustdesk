@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common/formatter/id_formatter.dart';
+import 'package:flutter_hbb/common/wol_relay.dart';
 import 'package:flutter_hbb/desktop/widgets/refresh_wrapper.dart';
 import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter_hbb/main.dart';
@@ -2601,6 +2602,12 @@ connect(BuildContext context, String id,
     } catch (_) {}
   }
   id = id.replaceAll(' ', '');
+  // Custom build: wake the peer if the relay says it is asleep. Fire and
+  // forget -- the connection attempt goes ahead regardless, and this does
+  // nothing when the peer is already up or the relay has never seen it.
+  if (isMobile && !isFileTransfer && !isViewCamera && !isTerminal) {
+    WolRelay.autoWakeForPeer(id);
+  }
   final oldId = id;
   id = await bind.mainHandleRelayId(id: id);
   forceRelay = id != oldId || forceRelay;

@@ -179,6 +179,12 @@ const double kMobileMouseSpeedFactor = 1.5;
 // accumulated movement exceeds this many logical pixels (and no pinch detected).
 const double kTwoFingerScrollIntentPx = 12.0;
 const double kTwoFingerPinchIntentScale = 0.06;
+// Custom build: a two-finger drag only scrolls when the fingers are held at
+// least this far apart and the movement is this much more vertical than
+// horizontal. Direction alone kept confusing a slightly-slanted pan with a
+// scroll; spreading the fingers is the deliberate, repeatable signal.
+const double kTwoFingerScrollMinSpanPx = 170.0;
+const double kTwoFingerScrollMinRatio = 1.7;
 // Custom build: logical pixels of finger movement per mouse-wheel notch for the
 // two-finger / three-finger scroll gesture. Upstream is 4, which sends a notch
 // (3 lines on Windows) for a barely visible movement; higher = slower scroll.
@@ -192,22 +198,12 @@ const String kDefaultWolRelay = "";
 // (no canvas resize / re-centering on the cursor).
 // "enable-" prefix: RustDesk treats these as default ON (option2bool).
 const String kOptionCustomKeepCanvasOnKeyboard = "enable-custom-keep-canvas-on-keyboard";
-// Custom build: ask Android for a plain ASCII (secure) keyboard so the phone
-// IME never composes full-width text; conversion is left to the PC IME.
-// "allow-" prefix: off unless explicitly "Y", so the phone IME composes
-// Japanese by default and the committed text is sent as a string.
-const String kOptionCustomAsciiKeyboard = "allow-custom-ascii-keyboard";
-// Custom build: with the phone's IME converting, the peer's IME has to be off
-// or the characters we send get reordered by its composition buffer. Sent as
-// VK_KANJI once per session -- but that is a toggle, and Windows keeps the IME
-// state shared across windows unless "use a different input method for each app
-// window" is on, so on a shared setup every new session flips it back. Off by
-// default ("allow-" prefix): turn the peer's IME off once by hand and it stays.
-// Only worth enabling when the peer keeps IME state per window.
-const String kOptionCustomPeerImeOff = "allow-custom-peer-ime-off";
-// Custom build: move the view so the remote cursor (i.e. the text field being
-// typed into) stays visible when the soft keyboard opens. Separate from
-// kOptionCustomKeepCanvasOnKeyboard, which only governs the canvas *size*.
+// Custom build: while a session is up, keep every character half-width. The
+// soft keyboard is asked for plain ASCII, and the characters go out on the
+// legacy path, which Windows injects as KEYEVENTF_UNICODE -- the peer's IME
+// never sees them, so nothing has to be toggled on the peer and its state
+// cannot make the input come out wrong.
+const String kOptionCustomForceHalfWidth = "enable-custom-force-halfwidth";
 const String kOptionCustomFocusInputOnKeyboard =
     "enable-custom-focus-input-on-keyboard";
 // Custom build: this phone is only ever the controller; the controlled-side
@@ -215,7 +211,7 @@ const String kOptionCustomFocusInputOnKeyboard =
 const bool kCustomEnableServerTab = false;
 // Custom build: self-update from the fork's GitHub releases (see custom_update.dart).
 // kCustomBuildTag is rewritten by build_android_local.ps1 from its -Tag argument.
-const String kCustomBuildTag = 'tv22';
+const String kCustomBuildTag = 'tv23';
 const String kCustomUpdateRepo = 'noir147/rustdesk';
 const String kOptionCustomAutoUpdate = "enable-custom-auto-update";
 const String kOptionCustomSkipBuild = "custom-update-skip-build";

@@ -5,6 +5,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../consts.dart';
@@ -141,6 +143,35 @@ class WolRelay {
         : _uri('/wake', {'mac': mac ?? ''});
     final r = await http.post(uri).timeout(_timeout);
     return (_decode(r)['sent'] ?? 0) as int;
+  }
+
+  /// Custom build: connecting to a machine that is asleep used to mean going to
+  /// a Wake-on-LAN page first and pressing a button. Called from connect(), this
+  /// does it on its own: match the saved peer's hostname against what the relay
+  /// has learned, and wake it if the relay says it is down. Nothing to set up
+  /// and nothing to press -- and nothing happens at all when the peer is
+  /// already awake, is unknown to the relay, or the relay cannot be reached.
+  static Future<void> autoWakeForPeer(String id) async {
+    if (!isConfigured) return;
+    var hostname = '';
+    try {
+      final j = jsonDecode(bind.mainGetPeerSync(id: id));
+      if (j is Map) {
+        hostname = (j['hostname'] ?? j['info']?['hostname'] ?? '') as String;
+      }
+    } catch (_) {
+      return;
+    }
+    if (hostname.isEmpty) return;
+    try {
+      final t = await findByHostname(hostname);
+      if (t == null || t.up) return;
+      final n = await wake(name: t.name);
+      debugPrint('auto WoL: sent $n packets to ${t.label} for $id');
+    } catch (e) {
+      // Relay unreachable: the MAC lives there, so there is nothing to send.
+      debugPrint('auto WoL skipped for $id: $e');
+    }
   }
 
   static Future<bool> isUp(String name) async {

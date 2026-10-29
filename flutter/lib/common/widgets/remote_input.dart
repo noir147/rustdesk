@@ -96,6 +96,7 @@ class _RawTouchGestureDetectorRegionState
   // 0 = undecided, 1 = scroll (mouse wheel), 2 = canvas zoom / pan.
   int _twoFingerMode = 0;
   Offset _twoFingerAccum = Offset.zero;
+  CustomTouchGestureRecognizer? _touchRecognizer;
 
   // Workaround tap down event when two fingers are used to scale(mobile)
   TapDownDetails? _lastTapDownDetails;
@@ -503,8 +504,15 @@ class _RawTouchGestureDetectorRegionState
             (d.scale - 1.0).abs() > kTwoFingerPinchIntentScale) {
           _twoFingerMode = 2;
         } else if (_twoFingerAccum.distance > kTwoFingerScrollIntentPx) {
-          _twoFingerMode =
-              _twoFingerAccum.dy.abs() >= _twoFingerAccum.dx.abs() ? 1 : 2;
+          // Direction alone put a slightly-off pan into scroll and vice versa.
+          // Scroll now also wants the fingers held apart and the movement
+          // clearly vertical; a narrow or slanted two-finger drag pans.
+          final span = _touchRecognizer?.fingerSpan ?? 0;
+          final dy = _twoFingerAccum.dy.abs();
+          final dx = _twoFingerAccum.dx.abs();
+          final isScroll = span >= kTwoFingerScrollMinSpanPx &&
+              dy >= dx * kTwoFingerScrollMinRatio;
+          _twoFingerMode = isScroll ? 1 : 2;
         } else {
           return;
         }
@@ -610,6 +618,7 @@ class _RawTouchGestureDetectorRegionState
       CustomTouchGestureRecognizer:
           GestureRecognizerFactoryWithHandlers<CustomTouchGestureRecognizer>(
               () => CustomTouchGestureRecognizer(), (instance) {
+        _touchRecognizer = instance;
         instance.onOneFingerPanStart =
             (DragStartDetails d) => onOneFingerPanStart(context, d);
         instance

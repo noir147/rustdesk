@@ -40,6 +40,37 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
   var _currentState = GestureState.none;
   Timer? _debounceTimer;
 
+  // Custom build: ScaleUpdateDetails carries a *relative* scale, never how far
+  // apart the fingers actually are, and separating a two-finger scroll from a
+  // two-finger pan needs the absolute spread. Track the live pointer positions
+  // here and expose the span in logical pixels.
+  final Map<int, Offset> _livePointers = {};
+
+  /// Distance between the two touching fingers in logical pixels, or 0 when
+  /// fewer than two are down.
+  double get fingerSpan {
+    if (_livePointers.length < 2) return 0;
+    final pts = _livePointers.values.toList();
+    var maxD = 0.0;
+    for (var i = 0; i < pts.length; i++) {
+      for (var j = i + 1; j < pts.length; j++) {
+        final d = (pts[i] - pts[j]).distance;
+        if (d > maxD) maxD = d;
+      }
+    }
+    return maxD;
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerDownEvent || event is PointerMoveEvent) {
+      _livePointers[event.pointer] = event.position;
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _livePointers.remove(event.pointer);
+    }
+    super.handleEvent(event);
+  }
+
   void _init() {
     debugPrint("CustomTouchGestureRecognizer init");
     // onStart = (d) {};

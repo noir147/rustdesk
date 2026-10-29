@@ -409,84 +409,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     }
   }
 
-  // Custom build: legacy character events are injected on Windows as
-  // KEYEVENTF_UNICODE, which bypasses the IME (typing 'a' with the Japanese
-  // IME on gives 'a', not 'あ'). Sending the key as a physical key press in
-  // map mode makes the IME see VK_A and compose.
-  //
-  // The key must travel as a USB HID usage code, not as an Android key code /
-  // evdev scan code: on an Android controller `_map_keyboard_mode`
-  // (src/keyboard.rs) derives the peer's scan code from `event.usb_hid` alone,
-  // and the raw-key path (`inputRawKey`) hardcodes that field to 0, so every
-  // key sent that way is dropped before it reaches the peer.
-  static const Map<String, PhysicalKeyboardKey> _physKeys = {
-    'a': PhysicalKeyboardKey.keyA, 'b': PhysicalKeyboardKey.keyB,
-    'c': PhysicalKeyboardKey.keyC, 'd': PhysicalKeyboardKey.keyD,
-    'e': PhysicalKeyboardKey.keyE, 'f': PhysicalKeyboardKey.keyF,
-    'g': PhysicalKeyboardKey.keyG, 'h': PhysicalKeyboardKey.keyH,
-    'i': PhysicalKeyboardKey.keyI, 'j': PhysicalKeyboardKey.keyJ,
-    'k': PhysicalKeyboardKey.keyK, 'l': PhysicalKeyboardKey.keyL,
-    'm': PhysicalKeyboardKey.keyM, 'n': PhysicalKeyboardKey.keyN,
-    'o': PhysicalKeyboardKey.keyO, 'p': PhysicalKeyboardKey.keyP,
-    'q': PhysicalKeyboardKey.keyQ, 'r': PhysicalKeyboardKey.keyR,
-    's': PhysicalKeyboardKey.keyS, 't': PhysicalKeyboardKey.keyT,
-    'u': PhysicalKeyboardKey.keyU, 'v': PhysicalKeyboardKey.keyV,
-    'w': PhysicalKeyboardKey.keyW, 'x': PhysicalKeyboardKey.keyX,
-    'y': PhysicalKeyboardKey.keyY, 'z': PhysicalKeyboardKey.keyZ,
-    '1': PhysicalKeyboardKey.digit1, '2': PhysicalKeyboardKey.digit2,
-    '3': PhysicalKeyboardKey.digit3, '4': PhysicalKeyboardKey.digit4,
-    '5': PhysicalKeyboardKey.digit5, '6': PhysicalKeyboardKey.digit6,
-    '7': PhysicalKeyboardKey.digit7, '8': PhysicalKeyboardKey.digit8,
-    '9': PhysicalKeyboardKey.digit9, '0': PhysicalKeyboardKey.digit0,
-    '-': PhysicalKeyboardKey.minus, ',': PhysicalKeyboardKey.comma,
-    '.': PhysicalKeyboardKey.period, '/': PhysicalKeyboardKey.slash,
-    ' ': PhysicalKeyboardKey.space,
-  };
-  static const PhysicalKeyboardKey _shiftKey = PhysicalKeyboardKey.shiftLeft;
-
-  // `character` is ignored by map mode (it only feeds the unicode fallback of
-  // the legacy/translate modes), so passing it keeps those modes typing rather
-  // than swallowing the key if the session is not in map mode after all.
-  Future<void> _sendPhysKey(
-          PhysicalKeyboardKey key, String character, bool down) =>
-      inputModel.newKeyboardModeAsync(
-          character, key.usbHidUsage & 0xFFFF, down, false);
-
-  // Awaited in order: shift down, key down, key up, shift up. Fired off without
-  // awaiting, the worker pool can run them in any order and the peer sees a
-  // stuck or mistimed shift.
-  Future<bool> _inputAsciiAsPhysicalKey(String char) async {
-    if (char.length != 1) return false;
-    var key = _physKeys[char];
-    var shift = false;
-    if (key == null) {
-      final lower = char.toLowerCase();
-      if (lower != char) {
-        key = _physKeys[lower];
-        shift = key != null;
-      }
-    }
-    if (key == null) return false;
-    if (shift) {
-      await _sendPhysKey(_shiftKey, '', true);
-    }
-    await _sendPhysKey(key, char, true);
-    await _sendPhysKey(key, char, false);
-    if (shift) {
-      await _sendPhysKey(_shiftKey, '', false);
-    }
-    return true;
-  }
-
+  // Custom build: every character goes out on the legacy path, which Windows
+  // injects as KEYEVENTF_UNICODE. That bypasses the peer's IME, so what we
+  // send is what lands -- no composition on the peer, and no dependence on
+  // whether its IME happens to be on. Together with the ASCII-only soft
+  // keyboard this is the "half-width for everything while connected" rule.
   Future<void> inputCharAsync(String char) async {
     if (!inputModel.keyboardInputAllowed) {
-      return;
-    }
-    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard) &&
-        gFFI.ffiModel.pi.platform == kPeerPlatformWindows &&
-        char != '\n') {
-      if (await _inputAsciiAsPhysicalKey(char)) return;
-      await inputModel.inputKeyAsync(char);
       return;
     }
     if (char == '\n') {
@@ -495,26 +424,6 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       char = 'VK_SPACE';
     }
     await inputModel.inputKeyAsync(char);
-  }
-
-  // Custom build: when the phone's IME does the conversion, the peer's IME must
-  // be off. With both on, the Japanese characters we send land in the peer
-  // IME's composition buffer and come out reordered -- typing
-  // "こんにちは。起動のテスト" produced "こんにちは。のテスト起動".
-  //
-  // VK_KANJI is a toggle; RustDesk's key map has no explicit "IME off"
-  // (no VK_IME_OFF), so this cannot be made idempotent. Send it once per
-  // session, on the first keyboard open, where Windows' Japanese IME is
-  // on by default. The 半/全 key on the virtual bar corrects the other case.
-  bool _sentPeerImeOff = false;
-
-  void _turnOffPeerImeOnce() {
-    if (_sentPeerImeOff) return;
-    if (!mainGetLocalBoolOptionSync(kOptionCustomPeerImeOff)) return;
-    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard)) return;
-    if (gFFI.ffiModel.pi.platform != kPeerPlatformWindows) return;
-    _sentPeerImeOff = true;
-    inputModel.inputKey('VK_KANJI');
   }
 
   void inputChar(String char) {
@@ -545,13 +454,6 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 
   void _openKeyboardUnlocked() {
     inputModel.keyboardInputAllowed = true;
-    // Custom build: physical-key typing (see _inputAsciiAsPhysicalKey) needs
-    // the session in map mode; set it before the keyboard shows up.
-    if (mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard) &&
-        gFFI.ffiModel.pi.platform == kPeerPlatformWindows) {
-      bind.sessionSetKeyboardMode(sessionId: sessionId, value: 'map');
-    }
-    _turnOffPeerImeOnce();
     gFFI.invokeMethod("enable_soft_keyboard", true);
     // destroy first, so that our _value trick can work
     _value = initText;
@@ -849,14 +751,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       // Custom build: the secure keyboard is exactly what we want when
                       // the PC IME does the conversion (no full-width from the phone).
                       enableSuggestions:
-                          !mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard),
+                          !mainGetLocalBoolOptionSync(kOptionCustomForceHalfWidth),
                       autofocus: true,
                       focusNode: _mobileFocusNode,
                       maxLines: null,
                       controller: _textController,
                       // trick way to make backspace work always
                       keyboardType:
-                          mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard)
+                          mainGetLocalBoolOptionSync(kOptionCustomForceHalfWidth)
                               ? TextInputType.visiblePassword
                               : TextInputType.multiline,
                       // `onChanged` may be called depending on the input method if this widget is wrapped in

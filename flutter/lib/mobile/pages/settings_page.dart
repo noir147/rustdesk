@@ -21,8 +21,6 @@ import '../widgets/deploy_dialog.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
-import '../../common/wol_relay.dart';
-import 'wol_page.dart';
 import '../../common/custom_update.dart';
 
 class SettingsPage extends StatefulWidget implements PageShape {
@@ -812,24 +810,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 });
               },
             ),
-          // Custom build: Wake-on-LAN via relay
-          SettingsTile(
-              title: const Text('Wake-on-LAN'),
-              // No relay address is compiled in, so show whether one is set:
-              // without it both this page and the peer menu action just fail.
-              description: Text(WolRelay.isConfigured
-                  ? 'Relay ${WolRelay.address}'
-                  : 'No relay set'),
-              leading: const Icon(Icons.power_settings_new),
-              onPressed: (context) {
-                Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const WolPage()))
-                    .then((_) {
-                  if (mounted) setState(() {});
-                });
-              }),
           SettingsTile.switchTile(
             title: const Text('Keep screen in place when keyboard opens'),
             leading: const Icon(Icons.keyboard_hide),
@@ -868,24 +848,14 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             },
           ),
           SettingsTile.switchTile(
-            title: const Text('Turn the PC IME off when typing starts'),
+            title: const Text('Force half-width input while connected'),
             description: const Text(
-                'Only for a PC that keeps IME state per window. 半/全 is a toggle, so where the state is shared every session flips it back — there, leave this off and switch the PC IME off once by hand'),
-            leading: const Icon(Icons.translate),
-            initialValue: mainGetLocalBoolOptionSync(kOptionCustomPeerImeOff),
-            onToggle: (v) async {
-              await mainSetLocalBoolOption(kOptionCustomPeerImeOff, v);
-              setState(() {});
-            },
-          ),
-          SettingsTile.switchTile(
-            title: const Text('ASCII keyboard only (PC IME converts)'),
-            description: const Text(
-                'Off: the phone IME composes Japanese and the committed text is sent'),
+                'ASCII-only soft keyboard, and characters are injected so the PC IME never sees them — its state cannot change what you get'),
             leading: const Icon(Icons.keyboard_alt_outlined),
-            initialValue: mainGetLocalBoolOptionSync(kOptionCustomAsciiKeyboard),
+            initialValue:
+                mainGetLocalBoolOptionSync(kOptionCustomForceHalfWidth),
             onToggle: (v) async {
-              await mainSetLocalBoolOption(kOptionCustomAsciiKeyboard, v);
+              await mainSetLocalBoolOption(kOptionCustomForceHalfWidth, v);
               setState(() {});
             },
           ),
